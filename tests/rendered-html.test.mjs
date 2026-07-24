@@ -56,9 +56,15 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /暴露风险/);
   assert.match(page, /positiveScoresOverruled/);
   assert.match(page, /reviewers’ opinions justify another round/);
-  assert.match(page, /randomInt\(36, 90\)/);
-  assert.match(page, /paper\.aiSmell - 58/);
+  assert.match(page, /\["ICML", "NeurIPS", "ICLR"\]/);
+  assert.match(page, /conferenceForSemester/);
+  assert.match(page, /clamp\(18 \+ \(semester - 1\) \* 5, 18, 90\)/);
+  assert.match(page, /4200 \+ \(semester - 1\) \* 1750/);
+  assert.match(page, /autoResearchNormalized/);
+  assert.match(page, /randomInt\(70, 99\)/);
+  assert.match(page, /paper\.aiSmell - 84/);
   assert.match(page, /skills\.detection \* 12/);
+  assert.match(page, /method === "manual" \? 28 : 9/);
   assert.match(page, /rejectReviewLibrary/);
   assert.match(page, /rejectReviewEasterEggs/);
   assert.match(page, /temperature=0/);

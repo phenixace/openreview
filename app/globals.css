@@ -1426,6 +1426,12 @@ input:focus-visible {
   color: #7b7d80;
 }
 
+.rival-flags .auto-normalized {
+  background: #edf8f5;
+  border-color: #b7ddd3;
+  color: var(--teal-dark);
+}
+
 .hidden-signal {
   background: #fff8e7;
   border: 1px dashed #d9b766;
@@ -1630,6 +1636,12 @@ input:focus-visible {
   line-height: 1.5;
   margin-bottom: 14px;
   padding: 9px 11px;
+}
+
+.detection-notice.normalized {
+  background: #edf8f5;
+  border-color: #b7ddd3;
+  color: var(--teal-dark);
 }
 
 .ac-note {

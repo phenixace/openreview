@@ -382,7 +382,13 @@ const topics = [
   },
 ];
 
-const venues = ["NeurIPS", "ICLR", "ICML", "ACL"];
+const venues = ["ICML", "NeurIPS", "ICLR"] as const;
+
+function conferenceForSemester(semester: number) {
+  const name = venues[(semester - 1) % venues.length];
+  const year = 2027 + Math.floor((semester - 1) / 2);
+  return { name, label: `${name} ${year}` };
+}
 
 const rivalTitles = [
   "Benchmarking Benchmarks That Benchmark Other Benchmarks",
@@ -587,7 +593,7 @@ function makePaper(method: Method, semester: number, skills: Skills, mods: Paper
     1,
     100,
   );
-  const aiSmell = method === "manual" ? randomInt(2, 20) : randomInt(36, 90);
+  const aiSmell = method === "manual" ? randomInt(2, 20) : randomInt(70, 99);
   const technique = pick(aiTechniques);
   const domain = pick(aiDomains);
   const claim = pick(aiClaims);
@@ -621,7 +627,7 @@ function makePaper(method: Method, semester: number, skills: Skills, mods: Paper
     rigor,
     aiSmell,
     abstract: method === "manual" ? manualAbstract : autoAbstract,
-    venue: `${pick(venues)} 20${27 + Math.floor(semester / 2)}`,
+    venue: conferenceForSemester(semester).label,
   };
 }
 
@@ -750,8 +756,10 @@ export default function Home() {
   const canBid = favor >= 55;
   const haiyouMode = targetAccepts === 10;
   const maxSemesters = haiyouMode ? 24 : MAX_SEMESTERS;
-  const autoShare = clamp(18 + (semester - 1) * 6 + (haiyouMode ? 12 : 0), 18, haiyouMode ? 94 : 84);
-  const poolSize = 4200 + semester * 1450 + Math.round(autoShare * 37) + (haiyouMode ? 7600 : 0);
+  const currentConference = conferenceForSemester(semester);
+  const autoShare = clamp(18 + (semester - 1) * 5, 18, 90);
+  const poolSize = 4200 + (semester - 1) * 1750;
+  const autoResearchNormalized = autoShare >= 80;
   const rival = useMemo(
     () => {
       const isAuto = randomInt(1, 100) <= autoShare;
@@ -882,7 +890,7 @@ export default function Home() {
 
   const doResearch = (method: Method) => {
     const nextPaper = makePaper(method, semester, skills, paperMods);
-    const nextStamina = clamp(stamina - (method === "manual" ? 20 : 9), 0, 100);
+    const nextStamina = clamp(stamina - (method === "manual" ? 28 : 9), 0, 100);
     setPaper(nextPaper);
     setArxiv(false);
     setBid(false);
@@ -929,12 +937,12 @@ export default function Home() {
     const arxivExposureRisk = arxiv && originKey !== "dynasty" ? origin.arxivExposure : 0;
     const bidEffect = bid ? 16 : 0;
     const reviewerDetectionChance = clamp(
-      paper.aiSmell - 58 + autoShare * 0.1 + arxivExposureRisk * 0.65,
+      paper.aiSmell - 84 + autoShare * 0.08 + arxivExposureRisk * 0.55,
       1,
-      72,
+      55,
     );
     const detectedBy = [0, 1, 2].filter(() => randomInt(1, 100) <= reviewerDetectionChance).length;
-    const smellPenalty = detectedBy * -8;
+    const smellPenalty = autoResearchNormalized ? 0 : detectedBy * -8;
     const composite =
       paper.quality * 0.35 +
       paper.novelty * 0.29 +
@@ -960,7 +968,7 @@ export default function Home() {
         eliteRescue +
         bidEffect * 0.35 +
         (paper.quality - 65) * 0.15 -
-        detectedBy * 5 -
+        (autoResearchNormalized ? 0 : detectedBy * 5) -
         arxivExposureRisk * 0.45 -
         retaliation * 0.7 +
         randomInt(-9, 5),
@@ -989,7 +997,11 @@ export default function Home() {
 
     const contextualReviews = [
       ...(detectedBy >= 2
-        ? [`该稿件被 ${detectedBy}/3 位审稿人判定为疑似 AutoResearch 产物。文字流畅，但有一种 token 预算充足的美。`]
+        ? [
+            autoResearchNormalized
+              ? `${detectedBy}/3 位审稿人看出 AutoResearch 痕迹，但本轮占比已达 ${autoShare}%，委员会决定不再假装工具来源是一项贡献。`
+              : `该稿件被 ${detectedBy}/3 位审稿人判定为疑似 AutoResearch 产物。文字流畅，但有一种 token 预算充足的美。`,
+          ]
         : []),
       ...(arxiv && originKey !== "dynasty"
         ? [
@@ -1151,11 +1163,14 @@ export default function Home() {
 
       <div className="conference-strip">
         <div>
-          <span className="eyebrow">NEURAL INFORMATION PROCESSING SYSTEMS · PARODY EDITION</span>
-          <h1>PhD Survival Track</h1>
+          <span className="eyebrow">{currentConference.label} · PARODY EDITION</span>
+          <h1>{currentConference.name} PhD Survival Track</h1>
         </div>
         <div className="conference-meta">
-          <span>本轮投稿池 {poolSize.toLocaleString()} 篇 · AutoResearch {autoShare}%</span>
+          <span>
+            本轮投稿池 {poolSize.toLocaleString()} 篇 · AutoResearch {autoShare}%
+            {autoResearchNormalized ? " · 已常态化" : ""}
+          </span>
           <span className="status-pill">
             {started ? `${haiyouMode ? "HAIYOU MODE · " : ""}Year ${year} · Semester ${semester}` : "PROFILE SETUP"}
           </span>
@@ -1279,7 +1294,7 @@ export default function Home() {
                   <p>读论文、跑实验、怀疑人生。慢，但 reviewer 比较难抓到不存在的引用。</p>
                   <ul>
                     <li><b>高</b> 严谨度与稳定品质</li>
-                    <li><b>−20</b> 精力值</li>
+                    <li><b>−28</b> 精力值</li>
                     <li><b>+5</b> 学术声望</li>
                   </ul>
                   <span className="method-cta">熬夜六个月 →</span>
@@ -1414,7 +1429,18 @@ export default function Home() {
                   <PaperStat label="品质" value={paper.quality} note={statWord(paper.quality, "quality")} />
                   <PaperStat label="Novelty" value={paper.novelty} note={statWord(paper.novelty, "novelty")} />
                   <PaperStat label="严谨度" value={paper.rigor} note={statWord(paper.rigor, "rigor")} />
-                  <PaperStat label="AI 味" value={paper.aiSmell} note={paper.aiSmell > 70 ? "Reviewer GPT 闻到了" : "暂未触发检测器"} danger={paper.aiSmell > 70} />
+                  <PaperStat
+                    label="AI 味"
+                    value={paper.aiSmell}
+                    note={
+                      paper.method === "auto"
+                        ? autoResearchNormalized
+                          ? "高位背景噪声，委员会已麻木"
+                          : "高位随机，不代表一定被抓"
+                        : "人工写作仍有少量模型口癖"
+                    }
+                    danger={paper.method === "auto" && !autoResearchNormalized}
+                  />
                 </div>
               </article>
 
@@ -1478,7 +1504,11 @@ export default function Home() {
                     <div className="rival-flags">
                       {rival.isBigLab && <span className="biglab">大组先验 · 谨慎打分</span>}
                       {rival.detected ? (
-                        <span className="auto-detected">⚠ 疑似 AutoResearch · 置信度 {rival.suspicion}%</span>
+                        <span className={autoResearchNormalized ? "auto-normalized" : "auto-detected"}>
+                          {autoResearchNormalized
+                            ? `AutoResearch 常态化 · 占比 ${autoShare}% · 不再单独扣分`
+                            : `⚠ 疑似 AutoResearch · 置信度 ${rival.suspicion}%`}
+                        </span>
                       ) : rival.isAuto ? (
                         <span className="auto-hidden">模板痕迹不明 · 鉴伪 Lv.{skills.detection} 未识别</span>
                       ) : (
@@ -1517,6 +1547,8 @@ export default function Home() {
                       <div className={`consequence ${reviewScore >= 6 ? "kind" : "harsh"}`}>
                         {rival.isBigLab && reviewScore <= 4
                           ? `大组预警：低分可能触发报复。学术人情 Lv.${skills.politics} 可削弱惩罚。`
+                          : autoResearchNormalized && rival.isAuto
+                            ? `常态化：本轮 AutoResearch 已占 ${autoShare}%，委员会要求你改为假装只看论文质量。`
                           : rival.detected && reviewScore >= 6
                             ? "检测偏差：社区普遍给疑似 AutoResearch 低分；你的高分会显得非常醒目。"
                             : reviewScore >= 6
@@ -1558,8 +1590,10 @@ export default function Home() {
                     ))}
                   </div>
                   {decision.detectedBy > 0 && (
-                    <div className="detection-notice">
-                      ⚠ {decision.detectedBy}/3 位审稿人认为本文疑似 AutoResearch 产物，并在评分时施加了负向先验。
+                    <div className={`detection-notice ${decision.autoShare >= 80 ? "normalized" : ""}`}>
+                      {decision.autoShare >= 80
+                        ? `○ ${decision.detectedBy}/3 位审稿人看出 AutoResearch 痕迹，但占比已达 ${decision.autoShare}%，不再施加工具来源惩罚。`
+                        : `⚠ ${decision.detectedBy}/3 位审稿人认为本文疑似 AutoResearch 产物，并在评分时施加了负向先验。`}
                     </div>
                   )}
                   {decision.positiveScoresOverruled && (
@@ -1605,6 +1639,7 @@ export default function Home() {
                 <div className="fuzzy-note">
                   <span>30% 模糊录用带</span>
                   分数决定大致位置，随机性、领域平衡、关系与“长期影响力”决定门朝哪边开。
+                  {decision.autoShare >= 80 && <b> AutoResearch 已超过 80%，Reviewer 暂停技术来源审判。</b>}
                   {decision.eliteOverride && <b> 本轮触发：大组低分捞回。</b>}
                   {decision.positiveScoresOverruled && <b> 本轮触发：全正分仍被 AC 送往 next round。</b>}
                 </div>
