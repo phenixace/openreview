@@ -58,7 +58,11 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /scores\.every\(\(score\) => score >= 5\)/);
   assert.match(page, /三位评审均给出正面评分/);
   assert.match(page, /reviewers’ opinions justify another round/);
-  assert.match(page, /\["ICML", "NeurIPS", "ICLR"\]/);
+  assert.match(page, /\["ICML", "NeurIPS", "ICLR", "ACL", "AAAI"\]/);
+  assert.match(page, /ROUNDS_PER_YEAR = 5/);
+  assert.match(page, /MAX_PHD_ROUNDS = PHD_YEARS \* ROUNDS_PER_YEAR/);
+  assert.match(page, /HAIYOU_ROUNDS = HAIYOU_YEARS \* ROUNDS_PER_YEAR/);
+  assert.match(page, /额外 5 年、25 轮/);
   assert.match(page, /conferenceForSemester/);
   assert.match(page, /clamp\(18 \+ \(semester - 1\) \* 5, 18, 90\)/);
   assert.match(page, /4200 \+ \(semester - 1\) \* 1750/);

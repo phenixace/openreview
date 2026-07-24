@@ -69,7 +69,11 @@ type Ending = {
   tone: "good" | "mixed" | "bad";
 };
 
-const MAX_SEMESTERS = 12;
+const ROUNDS_PER_YEAR = 5;
+const PHD_YEARS = 4;
+const MAX_PHD_ROUNDS = PHD_YEARS * ROUNDS_PER_YEAR;
+const HAIYOU_YEARS = 5;
+const HAIYOU_ROUNDS = HAIYOU_YEARS * ROUNDS_PER_YEAR;
 const TRAINING_MONTHS = 3;
 
 const skillCatalog: Record<
@@ -113,7 +117,7 @@ const randomEvents: RandomEvent[] = [
     icon: "▦",
     title: "GPU 排队系统发生哲学错误",
     body: "你排在自己后面。管理员解释说这是 eventually consistent。",
-    effect: "本学期严谨度 −7，精力 −4",
+    effect: "本轮严谨度 −7，精力 −4",
     stamina: -4,
     mods: { rigor: -7 },
   },
@@ -382,11 +386,11 @@ const topics = [
   },
 ];
 
-const venues = ["ICML", "NeurIPS", "ICLR"] as const;
+const venues = ["ICML", "NeurIPS", "ICLR", "ACL", "AAAI"] as const;
 
 function conferenceForSemester(semester: number) {
   const name = venues[(semester - 1) % venues.length];
-  const year = 2027 + Math.floor((semester - 1) / 2);
+  const year = 2027 + Math.floor((semester - 1) / ROUNDS_PER_YEAR);
   return { name, label: `${name} ${year}` };
 }
 
@@ -637,7 +641,7 @@ function getEnding(accepts: number, favor: number, stamina: number, reputation: 
       icon: "🛒",
       title: "找不到工作，流落街头",
       subtitle: "ENDING 00 · Reviewer #2 仍然认为你缺少实验",
-      body: "十二个学期，零篇录用。你把办公椅改造成了购物车，并在天桥下继续回复审稿意见。",
+      body: "四年二十轮，零篇录用。你把办公椅改造成了购物车，并在天桥下继续回复审稿意见。",
       tone: "bad",
     };
   }
@@ -724,6 +728,7 @@ export default function Home() {
   const [phase, setPhase] = useState<Phase>("training");
   const [semester, setSemester] = useState(1);
   const [targetAccepts, setTargetAccepts] = useState<3 | 10>(3);
+  const [haiyouStartRound, setHaiyouStartRound] = useState<number | null>(null);
   const [trainingMonth, setTrainingMonth] = useState(1);
   const [skills, setSkills] = useState<Skills>({
     theory: 0,
@@ -752,10 +757,15 @@ export default function Home() {
   ]);
 
   const origin = origins[originKey];
-  const year = Math.ceil(semester / 2);
   const canBid = favor >= 55;
   const haiyouMode = targetAccepts === 10;
-  const maxSemesters = haiyouMode ? 24 : MAX_SEMESTERS;
+  const phaseRound = haiyouMode && haiyouStartRound ? semester - haiyouStartRound + 1 : semester;
+  const year = Math.max(1, Math.ceil(phaseRound / ROUNDS_PER_YEAR));
+  const roundInYear = ((Math.max(phaseRound, 1) - 1) % ROUNDS_PER_YEAR) + 1;
+  const maxRounds =
+    haiyouMode && haiyouStartRound
+      ? haiyouStartRound + HAIYOU_ROUNDS - 1
+      : MAX_PHD_ROUNDS;
   const currentConference = conferenceForSemester(semester);
   const autoShare = clamp(18 + (semester - 1) * 5, 18, 90);
   const poolSize = 4200 + (semester - 1) * 1750;
@@ -797,6 +807,7 @@ export default function Home() {
     );
     setStarted(true);
     setPhase("training");
+    setHaiyouStartRound(null);
     setCurrentEvent(null);
     setMonthlyActionResult(null);
     setLogs([`你以「${selected.name}」身份注册 PeerReview。毕业要求：3 篇录用。`]);
@@ -854,7 +865,7 @@ export default function Home() {
     applyMonthlyEvent(event, -4);
     setCurrentEvent(event);
     addLog(
-      `第 ${semester} 学期 · ${trainingMonth} 月：进修「${skill.name}」${succeeded ? `成功 +${gainedLevels}` : "失败 +0"}，并触发「${event.title}」。`,
+      `第 ${semester} 轮 · ${trainingMonth} 月：进修「${skill.name}」${succeeded ? `成功 +${gainedLevels}` : "失败 +0"}，并触发「${event.title}」。`,
     );
   };
 
@@ -869,7 +880,7 @@ export default function Home() {
       detail: "本月不增加任何技能。学术系统将你的睡眠记录为低产出。",
     });
     setCurrentEvent(event);
-    addLog(`第 ${semester} 学期 · ${trainingMonth} 月：选择休整，恢复 ${recovered} 点精力，触发「${event.title}」。`);
+    addLog(`第 ${semester} 轮 · ${trainingMonth} 月：选择休整，恢复 ${recovered} 点精力，触发「${event.title}」。`);
   };
 
   const continueMonth = () => {
@@ -899,8 +910,8 @@ export default function Home() {
     setReputation((value) => clamp(value + (method === "manual" ? 5 : -1), 0, 100));
     addLog(
       method === "manual"
-        ? `第 ${semester} 学期：你亲手做完实验，咖啡机获得共同一作。`
-        : `第 ${semester} 学期：AutoResearch 用 11 分钟完成了选题、实验和自我感动。`,
+        ? `第 ${semester} 轮：你亲手做完实验，咖啡机获得共同一作。`
+        : `第 ${semester} 轮：AutoResearch 用 11 分钟完成了选题、实验和自我感动。`,
     );
     if (nextStamina <= 0) {
       setEnding(getExhaustionEnding(accepts));
@@ -1089,7 +1100,7 @@ export default function Home() {
     addLog(
       enteringHaiyou
         ? "海优加压阶段：短暂休整只恢复 8 点精力，投稿池和审稿负担继续扩大。"
-        : "固定事件：学期结束，学校强制关闭实验室两天。精力 +13。",
+        : "固定事件：本轮结束，学校强制关闭实验室两天。精力 +13。",
     );
   };
 
@@ -1099,8 +1110,10 @@ export default function Home() {
   };
 
   const challengeHaiyou = () => {
+    const firstHaiyouRound = semester + 1;
     setTargetAccepts(10);
-    addLog("你已满足博士毕业线，却选择暂不结算，开启海优加压模式：目标 10 篇。");
+    setHaiyouStartRound(firstHaiyouRound);
+    addLog("你已满足博士毕业线，却选择暂不结算，开启海优加压模式：额外 5 年、25 轮，目标 10 篇。");
     advanceSemester(true);
   };
 
@@ -1111,7 +1124,7 @@ export default function Home() {
       setPhase("ending");
       return;
     }
-    if (newAccepts >= targetAccepts || semester >= maxSemesters) {
+    if (newAccepts >= targetAccepts || semester >= maxRounds) {
       setEnding(haiyouMode ? getHaiyouEnding(newAccepts) : getEnding(newAccepts, favor, stamina, reputation));
       setPhase("ending");
       return;
@@ -1124,6 +1137,7 @@ export default function Home() {
     setPhase("training");
     setSemester(1);
     setTargetAccepts(3);
+    setHaiyouStartRound(null);
     setTrainingMonth(1);
     setSkills({ theory: 0, engineering: 1, writing: 0, detection: 0, politics: 0 });
     setPaperMods({ quality: 0, novelty: 0, rigor: 0 });
@@ -1158,7 +1172,7 @@ export default function Home() {
         </nav>
         <div className="deadline">
           <span className="pulse-dot" />
-          距离 deadline：<strong>{Math.max(0, maxSemesters - semester)} 个学期</strong>
+          距离 deadline：<strong>{Math.max(0, maxRounds - semester + 1)} 轮会议</strong>
         </div>
         <div className="avatar" aria-label="匿名博士生">匿</div>
       </header>
@@ -1174,7 +1188,9 @@ export default function Home() {
             {autoResearchNormalized ? " · 已常态化" : ""}
           </span>
           <span className="status-pill">
-            {started ? `${haiyouMode ? "HAIYOU MODE · " : ""}Year ${year} · Semester ${semester}` : "PROFILE SETUP"}
+            {started
+              ? `${haiyouMode ? "HAIYOU MODE · " : ""}Year ${year} · Round ${roundInYear}/${ROUNDS_PER_YEAR}`
+              : "PROFILE SETUP"}
           </span>
         </div>
       </div>
@@ -1242,7 +1258,7 @@ export default function Home() {
               <div className="setup-heading">
                 <span className="kicker">NEW GAME · 身世抽卡，但允许重抽</span>
                 <h2>请选择你的学术出生点</h2>
-                <p>你有 12 个学期。至少中三篇顶会，才能离开这个页面。</p>
+                <p>你有 4 年、每年 5 轮，共 20 次会议机会。至少中三篇，才能离开这个页面。</p>
               </div>
               <div className="origin-grid">
                 {(Object.keys(origins) as OriginKey[]).map((key) => {
@@ -1277,11 +1293,11 @@ export default function Home() {
             <div className="phase-card">
               <PhaseHeader
                 step="01 / RESEARCH"
-                title={`第 ${semester} 学期：做点研究`}
+                title={`第 ${semester} 轮 · ${currentConference.name}：做点研究`}
                 description="选择一种可靠的生产关系。品质、novelty 和严谨度由模板与概率共同负责。"
               />
               <div className="semester-buffs">
-                <span>技能边际递减后的本学期修正</span>
+                <span>技能边际递减后的本轮修正</span>
                 <b>品质 {paperMods.quality + skillBonus(skills.writing) >= 0 ? "+" : ""}{paperMods.quality + skillBonus(skills.writing)}</b>
                 <b>Novelty {paperMods.novelty + skillBonus(skills.theory) >= 0 ? "+" : ""}{paperMods.novelty + skillBonus(skills.theory)}</b>
                 <b>严谨度 {paperMods.rigor + skillBonus(skills.engineering) >= 0 ? "+" : ""}{paperMods.rigor + skillBonus(skills.engineering)}</b>
@@ -1328,12 +1344,12 @@ export default function Home() {
             <div className="phase-card">
               <PhaseHeader
                 step={`MONTH ${trainingMonth} / ${TRAINING_MONTHS} · SKILL PHASE`}
-                title={`第 ${semester} 学期 · ${trainingMonth} 月行动`}
+                title={`第 ${semester} 轮 · ${currentConference.name} · ${trainingMonth} 月行动`}
                 description="每月可尝试进修一项技能，或放弃成长换取精力。进修可能失败，随机事件不会缺席。"
               />
               {!currentEvent ? (
                 <>
-                  <div className="month-roadmap" aria-label="本学期月份进度">
+                  <div className="month-roadmap" aria-label="本轮月份进度">
                     {Array.from({ length: TRAINING_MONTHS }, (_, index) => (
                       <div
                         className={trainingMonth > index + 1 ? "done" : trainingMonth === index + 1 ? "active" : ""}
@@ -1661,7 +1677,7 @@ export default function Home() {
                   <button className="primary" type="button" onClick={continueGame}>
                     {accepts >= targetAccepts
                       ? haiyouMode ? "提交海优申请" : "提交毕业申请"
-                      : semester >= maxSemesters ? "查看最终结局" : haiyouMode ? "进入下一个高压学期" : "进入下一学期"} <span>→</span>
+                      : semester >= maxRounds ? "查看最终结局" : haiyouMode ? "进入下一轮海优赛季" : "进入下一轮会议"} <span>→</span>
                   </button>
                 )}
               </div>
