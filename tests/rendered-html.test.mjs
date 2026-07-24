@@ -54,6 +54,8 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /进修失败/);
   assert.match(page, /arxivExposureRisk/);
   assert.match(page, /暴露风险/);
+  assert.match(page, /positiveScoresOverruled/);
+  assert.match(page, /reviewers’ opinions justify another round/);
   assert.match(page, /rejectReviewLibrary/);
   assert.match(page, /rejectReviewEasterEggs/);
   assert.match(page, /temperature=0/);

@@ -58,6 +58,7 @@ type Decision = {
   detectedBy: number;
   distribution: number[];
   eliteOverride: boolean;
+  positiveScoresOverruled: boolean;
 };
 
 type Ending = {
@@ -966,7 +967,7 @@ export default function Home() {
       3,
       haiyouMode ? 68 : 82,
     );
-    const accepted = randomInt(1, 100) <= probability;
+    const sampledAccepted = randomInt(1, 100) <= probability;
     const centerBase = Math.round(composite / 13);
     const center = clamp(centerBase + randomInt(-1, 1), 2, 9);
     const scores = [
@@ -974,6 +975,8 @@ export default function Home() {
       clamp(center + randomInt(-1, 2), 1, 10),
       clamp(center + randomInt(-2, 2), 1, 10),
     ];
+    const positiveScoresOverruled = scores.every((score) => score >= 6) && randomInt(1, 100) <= 30;
+    const accepted = sampledAccepted && !positiveScoresOverruled;
     const eliteOverride =
       accepted && originKey === "dynasty" && (rankPercentile > acceptedRate || scores.reduce((a, b) => a + b, 0) / 3 < 5);
     const distribution = [
@@ -1011,15 +1014,16 @@ export default function Home() {
           : null
       : null;
     const review = `Reviewer #2：${selectedEasterEgg?.text ?? pick(reviewPool)}`;
-    const areaChair =
-      selectedEasterEgg?.acEcho ??
-      (accepted
-        ? eliteOverride
-          ? "虽然未进入分数 Top 30%，但该团队在本领域有持续影响力。经酌情讨论，建议录用。"
-          : "分数存在争议，但模糊录用带允许少量随机游走。作者本轮幸运地走进了会场。"
-        : strictTop
-          ? "该稿件位于分数 Top 30% 附近，但受到领域平衡、随机性与不可见因素影响，建议拒稿。"
-          : "综合考虑评审意见与本年度玄学波动，建议作者下一轮继续为社区做贡献。");
+    const areaChair = positiveScoresOverruled
+      ? "三位 Reviewer 均给出正面评分。However, the reviewers’ opinions justify another round. 作者应携带这些支持意见，在 next round 重新接受同一批随机性。"
+      : selectedEasterEgg?.acEcho ??
+        (accepted
+          ? eliteOverride
+            ? "虽然未进入分数 Top 30%，但该团队在本领域有持续影响力。经酌情讨论，建议录用。"
+            : "分数存在争议，但模糊录用带允许少量随机游走。作者本轮幸运地走进了会场。"
+          : strictTop
+            ? "该稿件位于分数 Top 30% 附近，但受到领域平衡、随机性与不可见因素影响，建议拒稿。"
+            : "综合考虑评审意见与本年度玄学波动，建议作者下一轮继续为社区做贡献。");
 
     setDecision({
       accepted,
@@ -1034,6 +1038,7 @@ export default function Home() {
       detectedBy,
       distribution,
       eliteOverride,
+      positiveScoresOverruled,
     });
     setPhase("decision");
     setFavor((value) =>
@@ -1557,6 +1562,11 @@ export default function Home() {
                       ⚠ {decision.detectedBy}/3 位审稿人认为本文疑似 AutoResearch 产物，并在评分时施加了负向先验。
                     </div>
                   )}
+                  {decision.positiveScoresOverruled && (
+                    <div className="detection-notice">
+                      ⚠ 彩蛋触发：全员正分，但 AC 判定这些正面意见足以 justify another round。
+                    </div>
+                  )}
                   <blockquote>{decision.review}</blockquote>
                   <div className="ac-note">
                     <span>AREA CHAIR META-REVIEW</span>
@@ -1596,6 +1606,7 @@ export default function Home() {
                   <span>30% 模糊录用带</span>
                   分数决定大致位置，随机性、领域平衡、关系与“长期影响力”决定门朝哪边开。
                   {decision.eliteOverride && <b> 本轮触发：大组低分捞回。</b>}
+                  {decision.positiveScoresOverruled && <b> 本轮触发：全正分仍被 AC 送往 next round。</b>}
                 </div>
               </section>
               <div className="action-row">
