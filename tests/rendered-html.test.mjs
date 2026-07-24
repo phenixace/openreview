@@ -56,6 +56,9 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /暴露风险/);
   assert.match(page, /positiveScoresOverruled/);
   assert.match(page, /reviewers’ opinions justify another round/);
+  assert.match(page, /randomInt\(36, 90\)/);
+  assert.match(page, /paper\.aiSmell - 58/);
+  assert.match(page, /skills\.detection \* 12/);
   assert.match(page, /rejectReviewLibrary/);
   assert.match(page, /rejectReviewEasterEggs/);
   assert.match(page, /temperature=0/);

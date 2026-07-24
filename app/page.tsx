@@ -587,7 +587,7 @@ function makePaper(method: Method, semester: number, skills: Skills, mods: Paper
     1,
     100,
   );
-  const aiSmell = method === "manual" ? randomInt(2, 20) : randomInt(58, 99);
+  const aiSmell = method === "manual" ? randomInt(2, 20) : randomInt(36, 90);
   const technique = pick(aiTechniques);
   const domain = pick(aiDomains);
   const claim = pick(aiClaims);
@@ -756,9 +756,9 @@ export default function Home() {
     () => {
       const isAuto = randomInt(1, 100) <= autoShare;
       const isBigLab = randomInt(1, 100) <= 34;
-      const detectability = randomInt(38, 94);
+      const detectability = randomInt(56, 108);
       const detectionPower =
-        skills.detection * 17 + skills.engineering * 4 + skills.writing * 2 + randomInt(0, 42);
+        skills.detection * 12 + skills.engineering * 2 + skills.writing + randomInt(0, 34);
       return {
         title: pick(rivalTitles),
         group: isBigLab ? "大组匿名投稿 · 作者列表打码后仍占两行" : pick(rivalGroups),
@@ -769,7 +769,7 @@ export default function Home() {
         isBigLab,
         detectability,
         detected: isAuto && detectionPower >= detectability,
-        suspicion: isAuto ? clamp(detectionPower - detectability + 55, 12, 99) : randomInt(3, 31),
+        suspicion: isAuto ? clamp(Math.round((detectionPower - detectability) * 1.4 + 58), 8, 96) : randomInt(3, 24),
       };
     },
     [submitted, autoShare, skills.detection, skills.engineering, skills.writing],
@@ -929,9 +929,9 @@ export default function Home() {
     const arxivExposureRisk = arxiv && originKey !== "dynasty" ? origin.arxivExposure : 0;
     const bidEffect = bid ? 16 : 0;
     const reviewerDetectionChance = clamp(
-      paper.aiSmell - 34 + autoShare * 0.16 + arxivExposureRisk,
-      2,
-      95,
+      paper.aiSmell - 58 + autoShare * 0.1 + arxivExposureRisk * 0.65,
+      1,
+      72,
     );
     const detectedBy = [0, 1, 2].filter(() => randomInt(1, 100) <= reviewerDetectionChance).length;
     const smellPenalty = detectedBy * -8;
