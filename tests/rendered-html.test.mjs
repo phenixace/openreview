@@ -55,10 +55,10 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /海优加压阶段/);
   assert.match(page, /CONFERENCE SCORE DISTRIBUTION/);
   assert.match(layout, /PeerReview™ — 3 Accepts or Perish/);
-  assert.match(layout, /og\.png/);
+  assert.match(layout, /og\.jpg/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 
-  await access(new URL("../public/og.png", import.meta.url));
+  await access(new URL("../public/og.jpg", import.meta.url));
   await access(new URL("../public/favicon.png", import.meta.url));
   assert.deepEqual(await readdir(new URL("../app/_sites-preview/", import.meta.url)), []);
 });

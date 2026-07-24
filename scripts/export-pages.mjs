@@ -38,8 +38,8 @@ html = html
   .replaceAll('\\"/assets/', '\\"./assets/')
   .replaceAll('"/favicon.png', '"./favicon.png')
   .replaceAll('\\"/favicon.png', '\\"./favicon.png')
-  .replaceAll('"/og.png', '"./og.png')
-  .replaceAll('\\"/og.png', '\\"./og.png');
+  .replaceAll('"/og.jpg', '"./og.jpg')
+  .replaceAll('\\"/og.jpg', '\\"./og.jpg');
 
 await writeFile(path.join(output, "index.html"), html, "utf8");
 await writeFile(path.join(output, "404.html"), html, "utf8");

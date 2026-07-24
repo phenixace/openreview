@@ -11,13 +11,13 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PeerReview™ — 3 Accepts or Perish",
     description: "科研不是零和博弈，评审系统说：未必。",
-    images: ["/og.png"],
+    images: ["/og.jpg"],
   },
   twitter: {
     card: "summary_large_image",
     title: "PeerReview™ — 3 Accepts or Perish",
     description: "科研不是零和博弈，评审系统说：未必。",
-    images: ["/og.png"],
+    images: ["/og.jpg"],
   },
 };
 
