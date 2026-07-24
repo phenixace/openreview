@@ -55,6 +55,8 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /arxivExposureRisk/);
   assert.match(page, /暴露风险/);
   assert.match(page, /positiveScoresOverruled/);
+  assert.match(page, /scores\.every\(\(score\) => score >= 5\)/);
+  assert.match(page, /三位评审均给出正面评分/);
   assert.match(page, /reviewers’ opinions justify another round/);
   assert.match(page, /\["ICML", "NeurIPS", "ICLR"\]/);
   assert.match(page, /conferenceForSemester/);

@@ -983,7 +983,7 @@ export default function Home() {
       clamp(center + randomInt(-1, 2), 1, 10),
       clamp(center + randomInt(-2, 2), 1, 10),
     ];
-    const positiveScoresOverruled = scores.every((score) => score >= 6) && randomInt(1, 100) <= 30;
+    const positiveScoresOverruled = scores.every((score) => score >= 5) && randomInt(1, 100) <= 30;
     const accepted = sampledAccepted && !positiveScoresOverruled;
     const eliteOverride =
       accepted && originKey === "dynasty" && (rankPercentile > acceptedRate || scores.reduce((a, b) => a + b, 0) / 3 < 5);
@@ -1018,14 +1018,16 @@ export default function Home() {
     const reviewPool = accepted
       ? [...acceptReviewLibrary, ...contextualReviews]
       : [...rejectReviewLibrary, ...contextualReviews];
-    const selectedEasterEgg = !accepted
+    const selectedEasterEgg = !accepted && !positiveScoresOverruled
       ? arxiv && randomInt(1, 100) <= 42
         ? arxivReviewEasterEgg
         : randomInt(1, 100) <= 34
           ? pick(rejectReviewEasterEggs)
           : null
       : null;
-    const review = `Reviewer #2：${selectedEasterEgg?.text ?? pick(reviewPool)}`;
+    const review = positiveScoresOverruled
+      ? "Reviewer Summary：三位评审均给出正面评分，未发现足以拒稿的关键缺陷，并一致认为工作适合本会。"
+      : `Reviewer #2：${selectedEasterEgg?.text ?? pick(reviewPool)}`;
     const areaChair = positiveScoresOverruled
       ? "三位 Reviewer 均给出正面评分。However, the reviewers’ opinions justify another round. 作者应携带这些支持意见，在 next round 重新接受同一批随机性。"
       : selectedEasterEgg?.acEcho ??
