@@ -427,6 +427,35 @@ const acceptReviewLibrary = [
   "结果令人信服，代码似乎也存在。对于本会议而言已经属于超额完成。",
 ];
 
+const rejectReviewEasterEggs = [
+  {
+    id: "cite-me",
+    text: "你的论文和我的工作很像，但你还没有引用我的论文。虽然双盲使你理论上不知道我是谁，我仍认为这体现了 related work 不充分，因此拒稿。",
+    acEcho: "Reviewer #2 指出了一个无法在双盲阶段具体说明、但显然非常重要的引用缺失。建议作者自行领会。",
+  },
+  {
+    id: "out-of-scope",
+    text: "我觉得这篇文章 out of scope。虽然它与征稿启事中的前三个关键词完全一致，但与我个人理解的 scope 不一致。",
+    acEcho: "关于 scope，评审意见存在分歧。考虑到 Reviewer #2 使用了英文短语，委员会认为其判断较为专业。",
+  },
+  {
+    id: "llm-chaos",
+    text: "本文没有讨论量子引力对 token 熵的影响，也缺少在水下机器人、古典诗歌和 8-bit 蛋白质上的消融。建议作者证明梯度在非欧几里得星期二收敛。",
+    acEcho: "Reviewer #2 提出了富有前瞻性的跨领域问题。虽然部分建议难以解析，作者仍应认真补充水下、诗歌与星期二实验。",
+  },
+  {
+    id: "temperature-zero",
+    text: "你所有 LLM 实验的 temperature 都设为 0。我觉得这不对：temperature=0 意味着模型没有创造力，也意味着实验过度可复现。Instant reject。",
+    acEcho: "委员会同意 temperature 是大模型的灵魂。作者未探索灵魂温度，构成方法学上的重大缺失。",
+  },
+];
+
+const arxivReviewEasterEgg = {
+  id: "compare-yourself",
+  text: "我在 arXiv 上确认了作者身份。我觉得这篇工作和你之前的研究方向不一致：为什么不对比你自己之前的工作？这种不连续性令人担忧。",
+  acEcho: "Reviewer #2 基于公开预印本进行了额外尽调。虽然这削弱了匿名性，但增强了委员会的故事连续性判断。",
+};
+
 const reviewCopy: Record<number, string> = {
   2: "作者声称“显著提升”，但我个人没有被显著打动。建议补 17 个数据集。",
   4: "工作具有一定意义。优点是完整，缺点是和我没发表的 idea 有点像。",
@@ -861,14 +890,23 @@ export default function Home() {
     const reviewPool = accepted
       ? [...acceptReviewLibrary, ...contextualReviews]
       : [...rejectReviewLibrary, ...contextualReviews];
-    const review = `Reviewer #2：${pick(reviewPool)}`;
-    const areaChair = accepted
-      ? eliteOverride
-        ? "虽然未进入分数 Top 30%，但该团队在本领域有持续影响力。经酌情讨论，建议录用。"
-        : "分数存在争议，但模糊录用带允许少量随机游走。作者本轮幸运地走进了会场。"
-      : strictTop
-        ? "该稿件位于分数 Top 30% 附近，但受到领域平衡、随机性与不可见因素影响，建议拒稿。"
-        : "综合考虑评审意见与本年度玄学波动，建议作者下一轮继续为社区做贡献。";
+    const selectedEasterEgg = !accepted
+      ? arxiv && randomInt(1, 100) <= 42
+        ? arxivReviewEasterEgg
+        : randomInt(1, 100) <= 34
+          ? pick(rejectReviewEasterEggs)
+          : null
+      : null;
+    const review = `Reviewer #2：${selectedEasterEgg?.text ?? pick(reviewPool)}`;
+    const areaChair =
+      selectedEasterEgg?.acEcho ??
+      (accepted
+        ? eliteOverride
+          ? "虽然未进入分数 Top 30%，但该团队在本领域有持续影响力。经酌情讨论，建议录用。"
+          : "分数存在争议，但模糊录用带允许少量随机游走。作者本轮幸运地走进了会场。"
+        : strictTop
+          ? "该稿件位于分数 Top 30% 附近，但受到领域平衡、随机性与不可见因素影响，建议拒稿。"
+          : "综合考虑评审意见与本年度玄学波动，建议作者下一轮继续为社区做贡献。");
 
     setDecision({
       accepted,
