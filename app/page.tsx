@@ -26,6 +26,12 @@ type RandomEvent = {
   mods?: Partial<PaperMods>;
 };
 
+type MonthlyActionResult = {
+  status: "success" | "failed" | "recovered";
+  label: string;
+  detail: string;
+};
+
 type Paper = {
   id: number;
   title: string;
@@ -269,6 +275,48 @@ const randomEvents: RandomEvent[] = [
   },
 ];
 
+const restEvents: RandomEvent[] = [
+  {
+    icon: "☾",
+    title: "你把 Slack 卸载了整整一天",
+    body: "第二天重装后有 47 条未读消息，其中 46 条是“收到”。",
+    effect: "精力 +20；本月不增加技能",
+    stamina: 20,
+  },
+  {
+    icon: "☕",
+    title: "导师在你闭眼时发来 Quick Question",
+    body: "这个 quick question 有 23 页附件。你礼貌地只看了摘要，然后继续睡。",
+    effect: "精力 +7，写作品质 −2；休息勉强成立",
+    stamina: 7,
+    mods: { quality: -2 },
+  },
+  {
+    icon: "♨",
+    title: "校医院判定你需要强制离线",
+    body: "医生看完作息记录，认为这份时间序列本身就不符合科研伦理。",
+    effect: "精力 +16，圈内好感 −2；你错过了一次无结论组会",
+    stamina: 16,
+    favor: -2,
+  },
+  {
+    icon: "⊘",
+    title: "你睡到自然醒，也睡过了组会",
+    body: "导师没有发现，因为导师也没来。大家一致认为会议顺利结束。",
+    effect: "精力 +13，声望 −2；本月不增加技能",
+    stamina: 13,
+    reputation: -2,
+  },
+  {
+    icon: "▤",
+    title: "你尝试休假，但自动邮件暴露了休假",
+    body: "小同行得知你 24 小时没有提交新实验，立即宣布赛道进入窗口期。",
+    effect: "精力 +9，Novelty −3；休息期间 idea 继续贬值",
+    stamina: 9,
+    mods: { novelty: -3 },
+  },
+];
+
 const origins = {
   dynasty: {
     name: "学阀世家",
@@ -278,6 +326,7 @@ const origins = {
     stamina: 92,
     base: 8,
     arxiv: 12,
+    arxivExposure: 0,
     accent: "gold",
   },
   ordinary: {
@@ -288,6 +337,7 @@ const origins = {
     stamina: 84,
     base: 0,
     arxiv: -10,
+    arxivExposure: 18,
     accent: "teal",
   },
   wild: {
@@ -298,6 +348,7 @@ const origins = {
     stamina: 74,
     base: -7,
     arxiv: -14,
+    arxivExposure: 26,
     accent: "coral",
   },
 } as const;
@@ -478,6 +529,20 @@ function clamp(value: number, min: number, max: number) {
 function skillBonus(level: number) {
   return Math.floor(Math.sqrt(level) * 3);
 }
+
+function trainingSuccessChance(level: number, stamina: number, haiyouMode: boolean) {
+  if (level >= 8) return 0;
+  const fatiguePenalty = stamina < 25 ? 24 : stamina < 50 ? 13 : stamina < 75 ? 6 : 0;
+  return clamp(72 - level * 7 - fatiguePenalty - (haiyouMode ? 9 : 0), 18, 76);
+}
+
+const trainingFailureReasons = [
+  "你看完了全部课程，但只记住老师说“这个很 straightforward”。",
+  "实验跑通了，技能点却被环境依赖截胡。",
+  "你认真做了笔记，第二天发现笔记总结的是另一个领域。",
+  "课程证书已到账，知识仍在分布式系统中 eventual consistency。",
+  "本月努力通过了形式审查，没有通过能力审查。",
+] as const;
 
 function isAdverseEvent(event: RandomEvent) {
   return (
@@ -662,6 +727,7 @@ export default function Home() {
   });
   const [paperMods, setPaperMods] = useState<PaperMods>({ quality: 0, novelty: 0, rigor: 0 });
   const [currentEvent, setCurrentEvent] = useState<RandomEvent | null>(null);
+  const [monthlyActionResult, setMonthlyActionResult] = useState<MonthlyActionResult | null>(null);
   const [accepts, setAccepts] = useState(0);
   const [favor, setFavor] = useState<number>(origins.ordinary.favor);
   const [stamina, setStamina] = useState<number>(origins.ordinary.stamina);
@@ -722,6 +788,8 @@ export default function Home() {
     );
     setStarted(true);
     setPhase("training");
+    setCurrentEvent(null);
+    setMonthlyActionResult(null);
     setLogs([`你以「${selected.name}」身份注册 PeerReview。毕业要求：3 篇录用。`]);
   };
 
@@ -729,23 +797,8 @@ export default function Home() {
     setLogs((current) => [message, ...current].slice(0, 8));
   };
 
-  const trainSkill = (key: SkillKey) => {
-    if (currentEvent) return;
-    const adverseEvents = randomEvents.filter(isAdverseEvent);
-    const recoveryEvents = randomEvents.filter((event) => (event.stamina ?? 0) > 0);
-    const event =
-      randomInt(1, 100) <= (haiyouMode ? 86 : 76)
-        ? pick(adverseEvents)
-        : randomInt(1, 100) <= 38
-          ? pick(recoveryEvents)
-          : pick(randomEvents);
-    const skill = skillCatalog[key];
-    setSkills((value) => ({
-      ...value,
-      [key]: clamp(value[key] + (event.title.includes("system prompt") && key === "detection" ? 2 : 1), 0, 8),
-    }));
-    if (key === "politics") setFavor((value) => clamp(value + 2, 0, 100));
-    setStamina((value) => clamp(value - 3 + (event.stamina ?? 0), 0, 100));
+  const applyMonthlyEvent = (event: RandomEvent, baseStaminaChange = 0) => {
+    setStamina((value) => clamp(value + baseStaminaChange + (event.stamina ?? 0), 0, 100));
     if (event.favor) setFavor((value) => clamp(value + event.favor!, 0, 100));
     if (event.reputation) setReputation((value) => clamp(value + event.reputation!, 0, 100));
     if (event.mods) {
@@ -755,12 +808,64 @@ export default function Home() {
         rigor: value.rigor + (event.mods?.rigor ?? 0),
       }));
     }
+  };
+
+  const trainSkill = (key: SkillKey) => {
+    if (currentEvent || skills[key] >= 8) return;
+    const adverseEvents = randomEvents.filter(isAdverseEvent);
+    const recoveryEvents = randomEvents.filter((event) => (event.stamina ?? 0) > 0);
+    const event =
+      randomInt(1, 100) <= (haiyouMode ? 86 : 76)
+        ? pick(adverseEvents)
+        : randomInt(1, 100) <= 38
+          ? pick(recoveryEvents)
+          : pick(randomEvents);
+    const skill = skillCatalog[key];
+    const successChance = trainingSuccessChance(skills[key], stamina, haiyouMode);
+    const succeeded = randomInt(1, 100) <= successChance;
+    const gainedLevels = succeeded && event.title.includes("system prompt") && key === "detection" ? 2 : succeeded ? 1 : 0;
+    if (gainedLevels > 0) {
+      setSkills((value) => ({
+        ...value,
+        [key]: clamp(value[key] + gainedLevels, 0, 8),
+      }));
+      if (key === "politics") setFavor((value) => clamp(value + 2, 0, 100));
+      setMonthlyActionResult({
+        status: "success",
+        label: `进修成功 · ${skill.name} +${gainedLevels}`,
+        detail: `本月成功率 ${successChance}%。知识暂时同意留在你的脑子里。`,
+      });
+    } else {
+      setMonthlyActionResult({
+        status: "failed",
+        label: `进修失败 · ${skill.name} +0`,
+        detail: `${pick(trainingFailureReasons)}（本月成功率 ${successChance}%）`,
+      });
+    }
+    applyMonthlyEvent(event, -4);
     setCurrentEvent(event);
-    addLog(`第 ${semester} 学期 · ${trainingMonth} 月：进修「${skill.name}」，触发「${event.title}」。`);
+    addLog(
+      `第 ${semester} 学期 · ${trainingMonth} 月：进修「${skill.name}」${succeeded ? `成功 +${gainedLevels}` : "失败 +0"}，并触发「${event.title}」。`,
+    );
+  };
+
+  const restMonth = () => {
+    if (currentEvent) return;
+    const event = pick(restEvents);
+    const recovered = event.stamina ?? 0;
+    applyMonthlyEvent(event);
+    setMonthlyActionResult({
+      status: "recovered",
+      label: `休整完成 · 精力 +${recovered}`,
+      detail: "本月不增加任何技能。学术系统将你的睡眠记录为低产出。",
+    });
+    setCurrentEvent(event);
+    addLog(`第 ${semester} 学期 · ${trainingMonth} 月：选择休整，恢复 ${recovered} 点精力，触发「${event.title}」。`);
   };
 
   const continueMonth = () => {
     setCurrentEvent(null);
+    setMonthlyActionResult(null);
     if (stamina <= 0) {
       setEnding(getExhaustionEnding(accepts));
       setPhase("ending");
@@ -820,8 +925,13 @@ export default function Home() {
     if (!paper || reviewScore === null) return;
     const quotaEffect = reviewScore >= 8 ? -10 : reviewScore >= 6 ? -5 : reviewScore <= 2 ? 7 : 2;
     const arxivEffect = arxiv ? origin.arxiv : 0;
+    const arxivExposureRisk = arxiv && originKey !== "dynasty" ? origin.arxivExposure : 0;
     const bidEffect = bid ? 16 : 0;
-    const reviewerDetectionChance = clamp(paper.aiSmell - 34 + autoShare * 0.16, 2, 95);
+    const reviewerDetectionChance = clamp(
+      paper.aiSmell - 34 + autoShare * 0.16 + arxivExposureRisk,
+      2,
+      95,
+    );
     const detectedBy = [0, 1, 2].filter(() => randomInt(1, 100) <= reviewerDetectionChance).length;
     const smellPenalty = detectedBy * -8;
     const composite =
@@ -850,6 +960,7 @@ export default function Home() {
         bidEffect * 0.35 +
         (paper.quality - 65) * 0.15 -
         detectedBy * 5 -
+        arxivExposureRisk * 0.45 -
         retaliation * 0.7 +
         randomInt(-9, 5),
       3,
@@ -878,7 +989,9 @@ export default function Home() {
         ? [`该稿件被 ${detectedBy}/3 位审稿人判定为疑似 AutoResearch 产物。文字流畅，但有一种 token 预算充足的美。`]
         : []),
       ...(arxiv && originKey !== "dynasty"
-        ? ["我碰巧在 arXiv 看过这篇匿名投稿，也碰巧与作者在同一条赛道。"]
+        ? [
+            `公开预印本使匿名性近似失效：暴露风险 +${arxivExposureRisk}%。我碰巧在 arXiv 看过，也碰巧与作者在同一条赛道。`,
+          ]
         : []),
       ...(retaliation > 0
         ? ["本文技术上没有明显问题，但社区中有可信消息认为作者需要先学习如何尊重领域传统。"]
@@ -947,6 +1060,7 @@ export default function Home() {
     setTrainingMonth(1);
     setPaperMods({ quality: 0, novelty: 0, rigor: 0 });
     setCurrentEvent(null);
+    setMonthlyActionResult(null);
     setPaper(null);
     setDecision(null);
     setReviewScore(null);
@@ -995,6 +1109,7 @@ export default function Home() {
     setSkills({ theory: 0, engineering: 1, writing: 0, detection: 0, politics: 0 });
     setPaperMods({ quality: 0, novelty: 0, rigor: 0 });
     setCurrentEvent(null);
+    setMonthlyActionResult(null);
     setAccepts(0);
     setSubmitted(0);
     setPaper(null);
@@ -1191,8 +1306,8 @@ export default function Home() {
             <div className="phase-card">
               <PhaseHeader
                 step={`MONTH ${trainingMonth} / ${TRAINING_MONTHS} · SKILL PHASE`}
-                title={`第 ${semester} 学期 · ${trainingMonth} 月进修`}
-                description="每月选择一个技能点。知识会留下，随机事件也会留下——通常以后者更明显。"
+                title={`第 ${semester} 学期 · ${trainingMonth} 月行动`}
+                description="每月可尝试进修一项技能，或放弃成长换取精力。进修可能失败，随机事件不会缺席。"
               />
               {!currentEvent ? (
                 <>
@@ -1210,29 +1325,58 @@ export default function Home() {
                   <div className="skill-grid">
                     {(Object.keys(skillCatalog) as SkillKey[]).map((key) => {
                       const item = skillCatalog[key];
+                      const successChance = trainingSuccessChance(skills[key], stamina, haiyouMode);
+                      const maxed = skills[key] >= 8;
                       return (
-                        <button type="button" className="skill-card" key={key} onClick={() => trainSkill(key)}>
+                        <button
+                          type="button"
+                          className="skill-card"
+                          disabled={maxed}
+                          key={key}
+                          onClick={() => trainSkill(key)}
+                        >
                           <span className="skill-icon">{item.icon}</span>
                           <span className="skill-copy">
-                            <small>CURRENT · LV.{skills[key]}</small>
+                            <small>CURRENT · LV.{skills[key]} · COST 4 ENERGY</small>
                             <strong>{item.name}</strong>
                             <p>{item.description}</p>
                           </span>
-                          <span className="skill-add">+1</span>
+                          <span className="skill-add">
+                            {maxed ? "MAX" : `${successChance}%`}
+                            <small>{maxed ? "已满级" : "升级成功"}</small>
+                          </span>
                         </button>
                       );
                     })}
+                    <button type="button" className="skill-card recovery-card" onClick={restMonth}>
+                      <span className="skill-icon">☾</span>
+                      <span className="skill-copy">
+                        <small>RECOVERY · OCCUPIES THIS MONTH</small>
+                        <strong>休整恢复精力</strong>
+                        <p>恢复 7–20 点精力，不增加技能；仍可能错过组会、被导师叫醒或让 idea 贬值。</p>
+                      </span>
+                      <span className="skill-add recovery">
+                        +7~20
+                        <small>精力</small>
+                      </span>
+                    </button>
                   </div>
                   <div className="probability-footnote">
                     <span>风险披露</span>
-                    负面或带严重副作用的事件概率约 {haiyouMode ? "86" : "76"}%。本轮预计 {poolSize.toLocaleString()} 篇投稿，其中 {autoShare}% 疑似由 AutoResearch 参与生产。
+                    技能成功率随等级、疲劳和海优模式下降；失败同样消耗 4 点精力。负面或带严重副作用的事件概率约 {haiyouMode ? "86" : "76"}%。
                   </div>
                 </>
               ) : (
                 <div className="event-reveal">
-                  <div className="event-tape">RANDOM EVENT · 月度随机事件</div>
+                  <div className="event-tape">MONTHLY RESULT · 月度结算</div>
                   <div className="event-icon">{currentEvent.icon}</div>
-                  <span className="kicker">你本来只是想学点东西</span>
+                  {monthlyActionResult && (
+                    <div className={`monthly-outcome ${monthlyActionResult.status}`}>
+                      <strong>{monthlyActionResult.label}</strong>
+                      <span>{monthlyActionResult.detail}</span>
+                    </div>
+                  )}
+                  <span className="kicker">以及，本月随机事件准时抵达</span>
                   <h3>{currentEvent.title}</h3>
                   <p>{currentEvent.body}</p>
                   <div className="event-effect">{currentEvent.effect}</div>
@@ -1275,10 +1419,14 @@ export default function Home() {
                   <span className="fake-check">{arxiv ? "✓" : ""}</span>
                   <span className="option-copy">
                     <strong>同步挂 arXiv</strong>
-                    <small>{originKey === "dynasty" ? "家族 buff：知名度将转化为正向先验。" : "风险提示：小同行可能通过写作习惯“偶然”认出你。"}</small>
+                    <small>
+                      {originKey === "dynasty"
+                        ? "学术大咖 buff：公开身份会被委员会解释为长期影响力。"
+                        : "风险提示：匿名性下降，小同行攻击与 AutoResearch 痕迹识别概率同时上升。"}
+                    </small>
                   </span>
                   <span className={`risk-chip ${originKey === "dynasty" ? "positive" : "negative"}`}>
-                    {originKey === "dynasty" ? `+${origin.arxiv}% 先验` : `${origin.arxiv}% 风险`}
+                    {originKey === "dynasty" ? `+${origin.arxiv}% 先验` : `+${origin.arxivExposure}% 暴露风险`}
                   </span>
                 </label>
 

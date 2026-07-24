@@ -48,6 +48,12 @@ test("ships game-specific metadata and social artwork", async () => {
 
   assert.match(page, /MONTH \$\{trainingMonth\}/);
   assert.match(page, /randomEvents/);
+  assert.match(page, /restEvents/);
+  assert.match(page, /trainingSuccessChance/);
+  assert.match(page, /休整恢复精力/);
+  assert.match(page, /进修失败/);
+  assert.match(page, /arxivExposureRisk/);
+  assert.match(page, /暴露风险/);
   assert.match(page, /rejectReviewLibrary/);
   assert.match(page, /rejectReviewEasterEggs/);
   assert.match(page, /temperature=0/);
