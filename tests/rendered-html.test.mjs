@@ -83,7 +83,13 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /positiveScoresOverruled/);
   assert.match(page, /scores\.every\(\(score\) => score >= 5\)/);
   assert.match(page, /POSITIVE_SCORE_AC_REJECT_RATE = 20/);
-  assert.match(page, /allPositiveScores \? !positiveScoresOverruled : sampledAccepted/);
+  assert.match(page, /const lowScorePanel = scoreAverage < 5/);
+  assert.match(page, /const veryLowScorePanel = scoreAverage < 4/);
+  assert.match(page, /originKey === "dynasty" \? 5 : 1/);
+  assert.match(page, /originKey === "dynasty" \? 10 : 3/);
+  assert.match(page, /lowScorePanel[\s\S]*lowScoreRescue[\s\S]*sampledAccepted/);
+  assert.match(page, /极小概率低分玄学捞回/);
+  assert.match(page, /low-score-rescue/);
   assert.match(page, /三位评审均给出正面评分/);
   assert.match(page, /reviewers’ opinions justify another round/);
   assert.match(page, /\["ICML", "ACL", "NeurIPS", "AAAI", "ICLR"\]/);

@@ -65,6 +65,7 @@ type Decision = {
   detectedBy: number;
   distribution: number[];
   eliteOverride: boolean;
+  lowScoreRescue: boolean;
   positiveScoresOverruled: boolean;
 };
 
@@ -1349,13 +1350,29 @@ export default function Home() {
       clamp(center + randomInt(-1, 2), 1, 10),
       clamp(center + randomInt(-2, 2), 1, 10),
     ];
+    const scoreAverage = scores.reduce((sum, score) => sum + score, 0) / scores.length;
     const allPositiveScores = scores.every((score) => score >= 5);
+    const lowScorePanel = scoreAverage < 5;
+    const veryLowScorePanel = scoreAverage < 4;
+    const lowScoreRescueProbability = veryLowScorePanel
+      ? originKey === "dynasty" ? 5 : 1
+      : originKey === "dynasty" ? 10 : 3;
+    const lowScoreRescue =
+      lowScorePanel && randomInt(1, 100) <= lowScoreRescueProbability;
     const positiveScoresOverruled =
       allPositiveScores && randomInt(1, 100) <= POSITIVE_SCORE_AC_REJECT_RATE;
-    const accepted = allPositiveScores ? !positiveScoresOverruled : sampledAccepted;
-    const effectiveProbability = allPositiveScores ? 100 - POSITIVE_SCORE_AC_REJECT_RATE : probability;
+    const accepted = allPositiveScores
+      ? !positiveScoresOverruled
+      : lowScorePanel
+        ? lowScoreRescue
+        : sampledAccepted;
+    const effectiveProbability = allPositiveScores
+      ? 100 - POSITIVE_SCORE_AC_REJECT_RATE
+      : lowScorePanel
+        ? lowScoreRescueProbability
+        : probability;
     const eliteOverride =
-      accepted && originKey === "dynasty" && (rankPercentile > acceptedRate || scores.reduce((a, b) => a + b, 0) / 3 < 5);
+      accepted && originKey === "dynasty" && (rankPercentile > acceptedRate || lowScorePanel);
     const distribution = [
       Math.round(10 + autoShare * 0.12),
       Math.round(17 + autoShare * 0.08),
@@ -1400,13 +1417,17 @@ export default function Home() {
         (accepted
           ? eliteOverride
             ? "虽然未进入分数 Top 30%，但该团队在本领域有持续影响力。经酌情讨论，建议录用。"
+            : lowScoreRescue
+              ? "评审分数整体偏低，但领域平衡委员会在抽签箱底发现了一张录用签。该事件概率很低，但拒绝解释其可复现性。"
             : "分数存在争议，但模糊录用带允许少量随机游走。作者本轮幸运地走进了会场。"
           : strictTop
             ? "该稿件位于分数 Top 30% 附近，但受到领域平衡、随机性与不可见因素影响，建议拒稿。"
             : "综合考虑评审意见与本年度玄学波动，建议作者下一轮继续为社区做贡献。");
     const easterEggId = positiveScoresOverruled
       ? "positive-scores-next-round"
-      : selectedEasterEgg?.id ?? null;
+      : lowScoreRescue
+        ? originKey === "dynasty" ? "elite-low-score-rescue" : "low-score-rescue"
+        : selectedEasterEgg?.id ?? null;
 
     setDecision({
       accepted,
@@ -1421,6 +1442,7 @@ export default function Home() {
       detectedBy,
       distribution,
       eliteOverride,
+      lowScoreRescue,
       positiveScoresOverruled,
     });
     setPhase("decision");
@@ -2096,6 +2118,7 @@ export default function Home() {
                   分数决定大致位置，随机性、领域平衡、关系与“长期影响力”决定门朝哪边开。
                   {decision.autoShare >= 80 && <b> AutoResearch 已超过 80%，Reviewer 暂停技术来源审判。</b>}
                   {decision.eliteOverride && <b> 本轮触发：大组低分捞回。</b>}
+                  {decision.lowScoreRescue && !decision.eliteOverride && <b> 本轮触发：极小概率低分玄学捞回。</b>}
                   {decision.positiveScoresOverruled && <b> 本轮触发：全正分仍被 AC 送往 next round。</b>}
                 </div>
               </section>
