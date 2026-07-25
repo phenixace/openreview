@@ -12,6 +12,11 @@
 - 识别同行的 AutoResearch 痕迹，同时承担给大组低分后的报复风险。
 - 观察每轮投稿量、AutoResearch 占比和评分分布。
 - 解锁饮水机大师兄、海优回国、大厂赢家等结局。
+- 结局、彩蛋和主动举报结果会匿名写入 Supabase；结局页也可以提交匿名反馈。
+
+## Supabase
+
+项目使用 publishable key 从浏览器写入受 RLS 保护的表，不需要、也绝不能在前端使用 secret key。首次启用时，在 Supabase SQL Editor 执行 [`supabase/schema.sql`](supabase/schema.sql)；原始事件与反馈仅项目管理员可读，匿名玩家只能新增记录。
 
 ## 本地运行
 
