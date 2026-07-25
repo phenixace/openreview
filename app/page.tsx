@@ -28,9 +28,8 @@ type RandomEvent = {
   effect: string;
   stamina?: number;
   favor?: number;
+  bossFavor?: number;
   reputation?: number;
-  retaliation?: number;
-  bossEncounter?: boolean;
   mods?: Partial<PaperMods>;
 };
 
@@ -82,8 +81,7 @@ type ReportResult = {
   tone: "success" | "failed" | "warning";
   title: string;
   body: string;
-  favorDelta: number;
-  retaliationDelta: number;
+  bossFavorDelta: number;
 };
 
 const ROUNDS_PER_YEAR = 5;
@@ -126,7 +124,7 @@ const skillCatalog: Record<
     name: "学术人情",
     short: "人情",
     icon: "♟",
-    description: "增加大佬好感，并降低给大组低分后的报复强度。",
+    description: "增加圈内好感，并降低给大组论文低分后的关系损耗。",
   },
 };
 
@@ -143,7 +141,7 @@ const randomEvents: RandomEvent[] = [
     icon: "☕",
     title: "在咖啡机旁偶遇 Area Chair",
     body: "你们讨论天气，全程没有提论文。离开时他问：『你叫什么来着？』",
-    effect: "大佬好感 +3，声望 −2",
+    effect: "圈内好感 +3，声望 −2",
     favor: 3,
     reputation: -2,
   },
@@ -173,7 +171,7 @@ const randomEvents: RandomEvent[] = [
     icon: "⌁",
     title: "引用机器人深夜关注了你",
     body: "第二天你的 h-index 增加 1，随后平台判定异常引用并给主页加了黄标。",
-    effect: "大佬好感 +2，品质 −3",
+    effect: "圈内好感 +2，品质 −3",
     favor: 2,
     mods: { quality: -3 },
   },
@@ -213,7 +211,7 @@ const randomEvents: RandomEvent[] = [
     icon: "◉",
     title: "大佬转发了你的预印本",
     body: "只写了一个“Interesting.”。你花了两天分析句号的情感倾向。",
-    effect: "大佬好感 +5，声望 +2，Novelty −4；全赛道都看见了",
+    effect: "圈内好感 +5，声望 +2，Novelty −4；全赛道都看见了",
     favor: 5,
     reputation: 2,
     mods: { novelty: -4 },
@@ -238,7 +236,7 @@ const randomEvents: RandomEvent[] = [
     icon: "♡",
     title: "你认真帮同门改了一篇论文",
     body: "论文中了，作者列表里没有你，但婚礼座位给你安排在主桌。",
-    effect: "大佬好感 +5，精力 −9",
+    effect: "圈内好感 +5，精力 −9",
     favor: 5,
     stamina: -9,
   },
@@ -318,7 +316,7 @@ const restEvents: RandomEvent[] = [
     icon: "♨",
     title: "校医院判定你需要强制离线",
     body: "医生看完作息记录，认为这份时间序列本身就不符合科研伦理。",
-    effect: "精力 +16，大佬好感 −2；你错过了一次无结论组会",
+    effect: "精力 +16，圈内好感 −2；你错过了一次无结论组会",
     stamina: 16,
     favor: -2,
   },
@@ -343,9 +341,9 @@ const restEvents: RandomEvent[] = [
 const socialEvents: RandomEvent[] = [
   {
     icon: "☕",
-    title: "大佬主动替你买了咖啡",
-    body: "你准备扫码转账，大佬摆摆手：『以后多给社区做贡献。』这句话暂时没有隐藏条件。",
-    effect: "专属事件：大佬好感 +6，精力 +5",
+    title: "同赛道师兄主动替你买了咖啡",
+    body: "你准备扫码转账，师兄摆摆手：『以后互相帮忙看稿。』这句话暂时没有隐藏条件。",
+    effect: "专属事件：圈内好感 +6，精力 +5",
     favor: 6,
     stamina: 5,
   },
@@ -353,15 +351,15 @@ const socialEvents: RandomEvent[] = [
     icon: "↗",
     title: "你被拉进“青年学者交流群 48”",
     body: "群公告要求实名、禁广告、每天早上八点接龙。你发了一个“各位老师好”，收获 17 个握手表情。",
-    effect: "专属事件：大佬好感 +10，学术声望 +2",
+    effect: "专属事件：圈内好感 +10，学术声望 +2",
     favor: 10,
     reputation: 2,
   },
   {
     icon: "▦",
-    title: "你替大佬守住了 keynote 第一排",
-    body: "你提前四十分钟用电脑、外套和伦理边界占了三个座位。大佬准时在最后一分钟出现。",
-    effect: "专属事件：大佬好感 +5，额外精力 −3",
+    title: "你替领域前辈守住了 keynote 第一排",
+    body: "你提前四十分钟用电脑、外套和伦理边界占了三个座位。前辈准时在最后一分钟出现。",
+    effect: "专属事件：圈内好感 +5，额外精力 −3",
     favor: 5,
     stamina: -3,
   },
@@ -369,16 +367,16 @@ const socialEvents: RandomEvent[] = [
     icon: "⌁",
     title: "机场拼车拼出了一个潜在 bid",
     body: "堵车两小时，你完整听完了对方实验室的组织架构，并在下车时得到一句『有空看看你的工作』。",
-    effect: "专属事件：大佬好感 +8，额外精力 −2，写作品质 +2",
+    effect: "专属事件：圈内好感 +8，额外精力 −2，写作品质 +2",
     favor: 8,
     stamina: -2,
     mods: { quality: 2 },
   },
   {
     icon: "⚠",
-    title: "你把大佬叫成了另一位大佬",
+    title: "你把同赛道老师叫成了另一位老师",
     body: "对方微笑纠正了你，并准确说出了你的导师、论文标题和上次审稿分数。",
-    effect: "专属事件：大佬好感 −2，学术声望 −4",
+    effect: "专属事件：圈内好感 −2，学术声望 −4",
     favor: -2,
     reputation: -4,
   },
@@ -386,24 +384,24 @@ const socialEvents: RandomEvent[] = [
     icon: "◇",
     title: "合影时你不慎站到了 C 位",
     body: "摄影师说随便站，所有人都知道这句话并不是真的。照片已经被上传到五个群。",
-    effect: "专属事件：大佬好感 +1，学术声望 −3",
+    effect: "专属事件：圈内好感 +1，学术声望 −3",
     favor: 1,
     reputation: -3,
   },
   {
     icon: "⌘",
-    title: "你修好了大佬的 HDMI",
-    body: "大佬终于能展示第 87 页 future work。你的实验还在远程终端里等待断线重连。",
-    effect: "专属事件：大佬好感 +7，额外精力 −2，严谨度 −2",
+    title: "你修好了会场的 HDMI",
+    body: "讲者终于能展示第 87 页 future work。你的实验还在远程终端里等待断线重连。",
+    effect: "专属事件：圈内好感 +7，额外精力 −2，严谨度 −2",
     favor: 7,
     stamina: -2,
     mods: { rigor: -2 },
   },
   {
     icon: "✦",
-    title: "大佬在朋友圈给你的论文点了赞",
+    title: "领域前辈在朋友圈给你的论文点了赞",
     body: "没有评论，没有引用，只有一个赞。整个组开始逐帧分析这个赞的政策含义。",
-    effect: "专属事件：大佬好感 +7，学术声望 +3",
+    effect: "专属事件：圈内好感 +7，学术声望 +3",
     favor: 7,
     reputation: 3,
   },
@@ -415,26 +413,22 @@ const bossEncounterEvents: RandomEvent[] = [
     title: "大佬对你留下了深刻印象",
     body: "你用三十秒讲清了自己的方向。大佬沉默片刻，说：『这个学生有点意思。』全桌立刻开始重新记忆你的名字。",
     effect: "5% 大佬遭遇：大佬好感 +24，学术声望 +4",
-    favor: 24,
+    bossFavor: 24,
     reputation: 4,
-    bossEncounter: true,
   },
   {
     icon: "◌",
     title: "大佬忽略了你",
     body: "你完成了自我介绍，大佬点头说『嗯嗯』，然后转身问旁边的人：『刚才那位同学叫什么？』",
-    effect: "5% 大佬遭遇：大佬本人好感 +0；你仍获得普通社交基础收益",
-    bossEncounter: true,
+    effect: "5% 大佬遭遇：大佬好感 +0；圈内好感照常增加",
   },
   {
     icon: "⚑",
-    title: "你留下了坏印象：大佬开始凝视",
+    title: "你给大佬留下了坏印象",
     body: "你说『这个 baseline 很容易复现』，大佬回答：『那是我们组的工作。』空气中出现了可量化的审稿压力。",
-    effect: "5% 大佬遭遇：大佬好感 −22，大佬凝视 +10，学术声望 −3",
-    favor: -22,
+    effect: "5% 大佬遭遇：大佬好感 −22，学术声望 −3",
+    bossFavor: -22,
     reputation: -3,
-    retaliation: 10,
-    bossEncounter: true,
   },
 ];
 
@@ -443,7 +437,8 @@ const origins = {
     name: "学阀世家",
     badge: "简单 · 出生即 SOTA",
     flavor: "家族群里有三位 AC。挂 arXiv 相当于实名投票。",
-    favor: 60,
+    favor: 72,
+    bossFavor: 60,
     stamina: 92,
     base: 8,
     arxiv: 12,
@@ -454,7 +449,8 @@ const origins = {
     name: "普通组",
     badge: "标准 · 学术工薪阶层",
     flavor: "算力要排队，idea 要防撞。挂 arXiv 会吸引小同行。",
-    favor: 0,
+    favor: 28,
+    bossFavor: 0,
     stamina: 84,
     base: 0,
     arxiv: -10,
@@ -465,7 +461,8 @@ const origins = {
     name: "导师失联",
     badge: "困难 · 单机博士",
     flavor: "导师最后上线于 189 天前。好消息：没人阻止你创新。",
-    favor: -25,
+    favor: 8,
+    bossFavor: -25,
     stamina: 74,
     base: -7,
     arxiv: -14,
@@ -880,6 +877,7 @@ export default function Home() {
   const [monthlyActionResult, setMonthlyActionResult] = useState<MonthlyActionResult | null>(null);
   const [accepts, setAccepts] = useState(0);
   const [favor, setFavor] = useState<number>(origins.ordinary.favor);
+  const [bossFavor, setBossFavor] = useState<number>(origins.ordinary.bossFavor);
   const [stamina, setStamina] = useState<number>(origins.ordinary.stamina);
   const [reputation, setReputation] = useState(20);
   const [paper, setPaper] = useState<Paper | null>(null);
@@ -892,7 +890,6 @@ export default function Home() {
   const [submitted, setSubmitted] = useState(0);
   const [manualPapers, setManualPapers] = useState(0);
   const [autoPapers, setAutoPapers] = useState(0);
-  const [retaliation, setRetaliation] = useState(0);
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackRating, setFeedbackRating] = useState(5);
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
@@ -906,7 +903,7 @@ export default function Home() {
 
   const origin = origins[originKey];
   const canBid = favor >= 55;
-  const arxivFavorAdjustment = Math.round(favor * 0.12);
+  const arxivFavorAdjustment = Math.round(bossFavor * 0.12);
   const arxivPriorEffect = origin.arxiv + arxivFavorAdjustment;
   const arxivExposureRiskPreview = clamp(origin.arxivExposure - arxivFavorAdjustment, 0, 40);
   const supabaseReady = supabaseLive;
@@ -978,7 +975,8 @@ export default function Home() {
         semester,
         haiyou_mode: haiyouMode,
         stamina,
-        boss_favor: favor,
+        circle_favor: favor,
+        boss_favor: bossFavor,
         reputation,
       },
     }).then(() => fetchPublicGameStats()).then((stats) => {
@@ -988,6 +986,7 @@ export default function Home() {
   }, [
     accepts,
     autoPapers,
+    bossFavor,
     ending,
     favor,
     haiyouMode,
@@ -1005,6 +1004,7 @@ export default function Home() {
     runIdRef.current = crypto.randomUUID();
     endingTrackedRef.current = "";
     setFavor(selected.favor);
+    setBossFavor(selected.bossFavor);
     setStamina(selected.stamina);
     setReputation(originKey === "dynasty" ? 44 : originKey === "wild" ? 8 : 20);
     setSkills(
@@ -1039,12 +1039,12 @@ export default function Home() {
   const applyMonthlyEvent = (event: RandomEvent, baseStaminaChange = 0, baseFavorChange = 0) => {
     setStamina((value) => clamp(value + baseStaminaChange + (event.stamina ?? 0), 0, 100));
     if (baseFavorChange || event.favor) {
-      setFavor((value) => clamp(value + baseFavorChange + (event.favor ?? 0), -100, 100));
+      setFavor((value) => clamp(value + baseFavorChange + (event.favor ?? 0), 0, 100));
+    }
+    if (event.bossFavor) {
+      setBossFavor((value) => clamp(value + event.bossFavor!, -100, 100));
     }
     if (event.reputation) setReputation((value) => clamp(value + event.reputation!, 0, 100));
-    if (event.retaliation) {
-      setRetaliation((value) => clamp(value + event.retaliation!, 0, 40));
-    }
     if (event.mods) {
       setPaperMods((value) => ({
         quality: value.quality + (event.mods?.quality ?? 0),
@@ -1073,7 +1073,7 @@ export default function Home() {
         ...value,
         [key]: clamp(value[key] + gainedLevels, 0, 8),
       }));
-      if (key === "politics") setFavor((value) => clamp(value + 2, -100, 100));
+      if (key === "politics") setFavor((value) => clamp(value + 2, 0, 100));
       setMonthlyActionResult({
         status: "success",
         label: `进修成功 · ${skill.name} +${gainedLevels}`,
@@ -1111,18 +1111,23 @@ export default function Home() {
     if (currentEvent) return;
     const metBoss = randomInt(1, 100) <= 5;
     const event = metBoss ? pick(bossEncounterEvents) : pick(socialEvents);
-    const favorGain = 6 + (event.favor ?? 0);
+    const circleFavorGain = 6 + (event.favor ?? 0);
+    const bossFavorDelta = event.bossFavor ?? 0;
     applyMonthlyEvent(event, -5, 6);
     setMonthlyActionResult({
       status: "socialized",
-      label: `社交完成 · 大佬好感 ${signed(favorGain)}`,
+      label: metBoss
+        ? `社交完成 · 圈内好感 +${circleFavorGain} · 大佬好感 ${signed(bossFavorDelta)}`
+        : `社交完成 · 圈内好感 +${circleFavorGain}`,
       detail: metBoss
-        ? "本月撞中了 5% 的大佬遭遇。基础社交收益仍为 +6，但大佬本人可能记住你、忽略你，或者开始凝视你。"
+        ? "本月撞中了 5% 的大佬遭遇。你仍然 social 了整个圈子，同时大佬本人可能记住你、忽略你或留下坏印象。"
         : "本月不增加技能；基础社交收益 +6，普通专属事件会继续修正结果。",
     });
     setCurrentEvent(event);
     addLog(
-      `第 ${semester} 轮 · ${trainingMonth} 月：去 social 大佬，大佬好感 ${signed(favorGain)}，触发「${event.title}」。`,
+      `第 ${semester} 轮 · ${trainingMonth} 月：去 social，圈内好感 +${circleFavorGain}${
+        metBoss ? `，大佬好感 ${signed(bossFavorDelta)}` : ""
+      }，触发「${event.title}」。`,
     );
   };
 
@@ -1175,7 +1180,7 @@ export default function Home() {
       return;
     }
     if (bid && !canBid) setBid(false);
-    if (bid) setFavor((value) => clamp(value - 18, -100, 100));
+    if (bid) setFavor((value) => clamp(value - 18, 0, 100));
     setSubmitted((value) => value + 1);
     if (paper.method === "manual") {
       setManualPapers((value) => value + 1);
@@ -1195,19 +1200,16 @@ export default function Home() {
     let result: ReportResult;
 
     if (!rival.isAuto) {
-      const retaliationDelta = rival.isBigLab ? 8 : 3;
       result = {
         tone: "warning",
         title: "误报：这次真是人写的",
         body: rival.isBigLab
           ? "委员会驳回举报，并友情提醒：被你举报的是大组人工精修稿。对方已经开始识别你的措辞习惯。"
           : "你把写作流畅误判成了机器生成。委员会感谢你的热情，然后扣除了你的判断力信用。",
-        favorDelta: -12,
-        retaliationDelta,
+        bossFavorDelta: -12,
       };
     } else if (randomInt(1, 100) <= reportSuccessChance) {
-      const favorDelta = randomInt(8, 16);
-      const retaliationDelta = rival.isBigLab ? 4 : 0;
+      const bossFavorDelta = randomInt(8, 16);
       result = {
         tone: "success",
         title: autoResearchNormalized ? "举报成立，但委员会已经麻了" : "举报成功：抓到批量科研痕迹",
@@ -1216,28 +1218,21 @@ export default function Home() {
           : rival.isBigLab
             ? "证据链成立，诚信委员会给你加分；作者团队则认为匿名举报者的标点很眼熟。"
             : "幻觉引用、模板句式与过分平滑曲线形成完整证据链。大佬认为你在替社区打扫生成式垃圾。",
-        favorDelta,
-        retaliationDelta,
+        bossFavorDelta,
       };
     } else {
       result = {
         tone: "failed",
         title: "举报失败：证据停留在“很像”",
         body: "论文确实由 AutoResearch 生成，但你的鉴伪报告只写了“AI 味很重”。委员会要求提供比直觉更昂贵的证据。",
-        favorDelta: -4,
-        retaliationDelta: rival.isBigLab ? 5 : 0,
+        bossFavorDelta: -4,
       };
     }
 
-    setFavor((value) => clamp(value + result.favorDelta, -100, 100));
-    if (result.retaliationDelta) {
-      setRetaliation((value) => clamp(value + result.retaliationDelta, 0, 40));
-    }
+    setBossFavor((value) => clamp(value + result.bossFavorDelta, -100, 100));
     setReportResult(result);
     addLog(
-      `你主动举报同行疑似 AutoResearch：${result.title}；大佬好感 ${signed(result.favorDelta)}${
-        result.retaliationDelta ? `，大佬凝视 +${result.retaliationDelta}` : ""
-      }。`,
+      `你主动举报同行疑似 AutoResearch：${result.title}；大佬好感 ${signed(result.bossFavorDelta)}。`,
     );
     void recordGameEvent({
       runId: runIdRef.current,
@@ -1248,8 +1243,7 @@ export default function Home() {
         rival_is_big_lab: rival.isBigLab,
         detection_level: skills.detection,
         success_chance: reportSuccessChance,
-        boss_favor_delta: result.favorDelta,
-        retaliation_delta: result.retaliationDelta,
+        boss_favor_delta: result.bossFavorDelta,
         semester,
         venue: currentConference.name,
       },
@@ -1277,8 +1271,7 @@ export default function Home() {
       arxivEffect +
       bidEffect +
       quotaEffect +
-      smellPenalty -
-      retaliation;
+      smellPenalty;
     const rankPercentile = clamp(
       Math.round(104 - composite + autoShare * 0.09 + (haiyouMode ? 11 : 0) + randomInt(-15, 16)),
       1,
@@ -1296,7 +1289,6 @@ export default function Home() {
         (paper.quality - 65) * 0.15 -
         (autoResearchNormalized ? 0 : detectedBy * 5) -
         arxivExposureRisk * 0.45 -
-        retaliation * 0.7 +
         randomInt(-9, 5),
       3,
       haiyouMode ? 68 : 82,
@@ -1336,9 +1328,6 @@ export default function Home() {
         ? [
             `公开预印本使匿名性近似失效：暴露风险 +${arxivExposureRisk}%。我碰巧在 arXiv 看过，也碰巧与作者在同一条赛道。`,
           ]
-        : []),
-      ...(retaliation > 0
-        ? ["本文技术上没有明显问题，但社区中有可信消息认为作者需要先学习如何尊重领域传统。"]
         : []),
       ...(eliteOverride
         ? ["分数偏低。Area Chair 提醒我们应当关注作者团队的长期贡献与潜在影响。"]
@@ -1388,7 +1377,7 @@ export default function Home() {
     });
     setPhase("decision");
     setFavor((value) =>
-      clamp(value + (reviewScore >= 8 ? 12 : reviewScore >= 6 ? 7 : reviewScore <= 2 ? -13 : -5), -100, 100),
+      clamp(value + (reviewScore >= 8 ? 12 : reviewScore >= 6 ? 7 : reviewScore <= 2 ? -13 : -5), 0, 100),
     );
     setReputation((value) =>
       clamp(value + (accepted ? 12 : -3) + (reviewScore >= 6 ? 3 : -2), 0, 100),
@@ -1407,9 +1396,11 @@ export default function Home() {
       });
     }
     if (rival.isBigLab && reviewScore <= 4) {
-      const revenge = clamp(randomInt(10, 24) - Math.floor(skills.politics * 1.5), 3, 24);
-      setRetaliation((value) => clamp(value + revenge, 0, 40));
-      addLog(`你给大组论文打了 ${reviewScore} 分。匿名大佬记住了你的写作习惯：后续投稿隐藏惩罚 +${revenge}。`);
+      const bossFavorLoss = clamp(randomInt(8, 18) - Math.floor(skills.politics * 1.25), 2, 18);
+      setBossFavor((value) => clamp(value - bossFavorLoss, -100, 100));
+      addLog(`你给大佬组论文打了 ${reviewScore} 分。作者向大佬表达遗憾：大佬好感 −${bossFavorLoss}。`);
+    } else if (rival.isBigLab && reviewScore >= 6) {
+      addLog(`你给大佬组论文打了 ${reviewScore} 分。大佬认为这是你应该做的：大佬好感 +0。`);
     }
     addLog(
       `${paper.venue} 决议：${accepted ? "ACCEPT" : "REJECT"}；投稿 ${poolSize.toLocaleString()} 篇，名义录用率 ${acceptedRate}%。`,
@@ -1419,7 +1410,6 @@ export default function Home() {
   const advanceSemester = (enteringHaiyou = haiyouMode) => {
     setSemester((value) => value + 1);
     setStamina((value) => clamp(value + (enteringHaiyou ? 8 : 13), 0, 100));
-    setRetaliation((value) => clamp(value - (enteringHaiyou ? 1 : 3), 0, 40));
     setTrainingMonth(1);
     setPaperMods({ quality: 0, novelty: 0, rigor: 0 });
     setCurrentEvent(null);
@@ -1485,9 +1475,9 @@ export default function Home() {
     setDecision(null);
     setReportResult(null);
     setEnding(null);
-    setRetaliation(0);
     setOriginKey("ordinary");
     setFavor(origins.ordinary.favor);
+    setBossFavor(origins.ordinary.bossFavor);
     setStamina(origins.ordinary.stamina);
     setReputation(20);
     setFeedbackText("");
@@ -1573,9 +1563,9 @@ export default function Home() {
           <section className="side-section vitals-sidebar">
             <h2>学术生命体征</h2>
             <Metric label="精力值" value={stamina} tone="coral" />
-            <Metric label="大佬好感度" value={favor} tone={favor >= 0 ? "teal" : "coral"} signed />
+            <Metric label="圈内好感度" value={favor} tone="teal" />
+            <Metric label="大佬好感度" value={bossFavor} tone={bossFavor >= 0 ? "teal" : "coral"} signed />
             <Metric label="学术声望" value={reputation} tone="gold" />
-            {retaliation > 0 && <Metric label="大佬凝视" value={retaliation * 2.5} tone="coral" />}
           </section>
 
           <section className="side-section skill-sidebar">
@@ -1635,7 +1625,8 @@ export default function Home() {
                       <small>{item.badge}</small>
                       <p>{item.flavor}</p>
                       <div className="origin-stats">
-                        <span>初始大佬好感 <b>{signed(item.favor)}</b></span>
+                        <span>圈内好感 <b>{item.favor}</b></span>
+                        <span>大佬好感 <b>{signed(item.bossFavor)}</b></span>
                         <span>投稿修正 <b>{item.base >= 0 ? "+" : ""}{item.base}%</b></span>
                       </div>
                     </button>
@@ -1704,7 +1695,7 @@ export default function Home() {
               <PhaseHeader
                 step={`MONTH ${trainingMonth} / ${TRAINING_MONTHS} · SKILL PHASE`}
                 title={`第 ${semester} 轮 · ${currentConference.name} · ${trainingMonth} 月行动`}
-                description="每月可尝试进修、休整，或去 social 大佬。进修可能失败，每种生活方式都有自己的随机性。"
+                description="每月可尝试进修、休整，或去圈内 Social。进修可能失败，每种生活方式都有自己的随机性。"
               />
               {!currentEvent ? (
                 <>
@@ -1761,8 +1752,8 @@ export default function Home() {
                       <span className="skill-icon">♟</span>
                       <span className="skill-copy">
                         <small>SOCIAL · COST 5 ENERGY · EXCLUSIVE EVENTS</small>
-                        <strong>去 social 大佬</strong>
-                        <p>通常获得 4–16 点大佬好感；另有 5% 概率真正撞见大佬，可能被记住、忽略或凝视。</p>
+                        <strong>去圈内 Social</strong>
+                        <p>通常获得 4–16 点圈内好感；另有 5% 概率真正撞见大佬，单独改变大佬好感。</p>
                       </span>
                       <span className="skill-add social">
                         5% 遭遇
@@ -1772,7 +1763,7 @@ export default function Home() {
                   </div>
                   <div className="probability-footnote">
                     <span>风险披露</span>
-                    技能成功率随等级、疲劳和海优模式下降；失败同样消耗 4 点精力。Social 消耗 5 点精力，通常净增好感，但 5% 的大佬遭遇可能直接触发凝视。进修的负面或带严重副作用事件概率约 {haiyouMode ? "86" : "76"}%。
+                    技能成功率随等级、疲劳和海优模式下降；失败同样消耗 4 点精力。Social 消耗 5 点精力，通常净增圈内好感；5% 的大佬遭遇只改变大佬好感。进修的负面或带严重副作用事件概率约 {haiyouMode ? "86" : "76"}%。
                   </div>
                 </>
               ) : (
@@ -1840,7 +1831,7 @@ export default function Home() {
                   <span className="option-copy">
                     <strong>同步挂 arXiv</strong>
                     <small>
-                      大佬好感 {signed(favor)} 会改变公开身份的先验解释：好感越高，先验越高、暴露风险越低。
+                      大佬好感 {signed(bossFavor)} 会改变公开身份的先验解释：好感越高，先验越高、暴露风险越低。
                     </small>
                   </span>
                   <span className={`risk-chip ${arxivPriorEffect >= 0 && arxivExposureRiskPreview <= 8 ? "positive" : "negative"}`}>
@@ -1858,7 +1849,7 @@ export default function Home() {
                   <span className="fake-check">{bid ? "✓" : canBid ? "" : "⌕"}</span>
                   <span className="option-copy">
                     <strong>找熟人 bid 这篇论文</strong>
-                    <small>{canBid ? "消耗 18 点大佬好感，显著提高遇到友军的概率。" : `大佬好感达到 +55 解锁（当前 ${signed(favor)}）。Social、成功举报或给同行高分都会涨。`}</small>
+                    <small>{canBid ? "消耗 18 点圈内好感，显著提高遇到友军的概率。" : `圈内好感达到 55 解锁（当前 ${favor}）。Social 或给同行高分都会涨。`}</small>
                   </span>
                   <span className="risk-chip positive">{canBid ? "+16% 友军" : "LOCKED"}</span>
                 </label>
@@ -1923,10 +1914,7 @@ export default function Home() {
                       <div className={`report-result ${reportResult.tone}`}>
                         <strong>{reportResult.title}</strong>
                         <p>{reportResult.body}</p>
-                        <span>
-                          大佬好感 {signed(reportResult.favorDelta)}
-                          {reportResult.retaliationDelta ? ` · 大佬凝视 +${reportResult.retaliationDelta}` : ""}
-                        </span>
+                        <span>大佬好感 {signed(reportResult.bossFavorDelta)}</span>
                       </div>
                     )}
                     <div className="score-heading">
@@ -1955,13 +1943,15 @@ export default function Home() {
                     {reviewScore !== null && (
                       <div className={`consequence ${reviewScore >= 6 ? "kind" : "harsh"}`}>
                         {rival.isBigLab && reviewScore <= 4
-                          ? `大组预警：低分可能触发报复。学术人情 Lv.${skills.politics} 可削弱惩罚。`
+                          ? `大佬组预警：低分会损失大佬好感。学术人情 Lv.${skills.politics} 可减少损失。`
+                          : rival.isBigLab && reviewScore >= 6
+                            ? `大佬组礼仪：圈内好感照常增加；大佬认为正分是你应该做的，大佬好感 +0。`
                           : autoResearchNormalized && rival.isAuto
                             ? `常态化：本轮 AutoResearch 已占 ${autoShare}%，委员会要求你改为假装只看论文质量。`
                           : rival.detected && reviewScore >= 6
                             ? "检测偏差：社区普遍给疑似 AutoResearch 低分；你的高分会显得非常醒目。"
                             : reviewScore >= 6
-                              ? `好人税：自己录用率 ${reviewScore === 8 ? "−10%" : "−5%"} · 大佬好感上升`
+                              ? `好人税：自己录用率 ${reviewScore === 8 ? "−10%" : "−5%"} · 圈内好感上升`
                               : `零和红利：自己录用率 +${reviewScore === 2 ? "7" : "2"}% · 小同行记仇`}
                       </div>
                     )}
@@ -2085,7 +2075,8 @@ export default function Home() {
               <p>{ending.body}</p>
               <div className="ending-stats">
                 <div><span>录用</span><b>{accepts}</b></div>
-                <div><span>大佬好感</span><b>{signed(favor)}</b></div>
+                <div><span>圈内好感</span><b>{favor}</b></div>
+                <div><span>大佬好感</span><b>{signed(bossFavor)}</b></div>
                 <div><span>声望</span><b>{reputation}</b></div>
                 <div><span>精力</span><b>{stamina}</b></div>
               </div>
