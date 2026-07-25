@@ -31,6 +31,7 @@ test("server-renders the PeerReview game setup", async () => {
   const html = await response.text();
   assert.match(html, /<title>PeerReview™ — 3 Accepts or Perish<\/title>/i);
   assert.match(html, /PhD Survival Track/);
+  assert.match(html, /全网最真实的Openreview模拟器/);
   assert.match(html, /请选择你的学术出生点/);
   assert.match(html, /学阀世家/);
   assert.match(html, /普通组/);
@@ -40,25 +41,32 @@ test("server-renders the PeerReview game setup", async () => {
 });
 
 test("ships game-specific metadata and social artwork", async () => {
-  const [page, layout, packageJson] = await Promise.all([
+  const [page, layout, styles, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /MONTH \$\{trainingMonth\}/);
   assert.match(page, /randomEvents/);
   assert.match(page, /restEvents/);
+  assert.match(page, /socialEvents/);
+  assert.match(page, /socialMonth/);
   assert.match(page, /trainingSuccessChance/);
   assert.match(page, /休整恢复精力/);
+  assert.match(page, /去 social 大佬/);
+  assert.match(page, /青年学者交流群 48/);
   assert.match(page, /进修失败/);
   assert.match(page, /arxivExposureRisk/);
   assert.match(page, /暴露风险/);
   assert.match(page, /positiveScoresOverruled/);
   assert.match(page, /scores\.every\(\(score\) => score >= 5\)/);
+  assert.match(page, /POSITIVE_SCORE_AC_REJECT_RATE = 20/);
+  assert.match(page, /allPositiveScores \? !positiveScoresOverruled : sampledAccepted/);
   assert.match(page, /三位评审均给出正面评分/);
   assert.match(page, /reviewers’ opinions justify another round/);
-  assert.match(page, /\["ICML", "NeurIPS", "ICLR", "ACL", "AAAI"\]/);
+  assert.match(page, /\["ICML", "ACL", "NeurIPS", "AAAI", "ICLR"\]/);
   assert.match(page, /ROUNDS_PER_YEAR = 5/);
   assert.match(page, /MAX_PHD_ROUNDS = PHD_YEARS \* ROUNDS_PER_YEAR/);
   assert.match(page, /HAIYOU_ROUNDS = HAIYOU_YEARS \* ROUNDS_PER_YEAR/);
@@ -78,6 +86,9 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /海优加压阶段/);
   assert.match(page, /CONFERENCE SCORE DISTRIBUTION/);
   assert.match(layout, /PeerReview™ — 3 Accepts or Perish/);
+  assert.match(layout, /全网最真实的 OpenReview 模拟器/);
+  assert.match(styles, /@media \(max-width: 600px\)[\s\S]*\.vitals-sidebar[\s\S]*display: grid/);
+  assert.match(styles, /@media \(max-width: 600px\)[\s\S]*\.skill-sidebar[\s\S]*display: grid/);
   assert.match(layout, /og\.jpg/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 

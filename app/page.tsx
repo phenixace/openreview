@@ -27,7 +27,7 @@ type RandomEvent = {
 };
 
 type MonthlyActionResult = {
-  status: "success" | "failed" | "recovered";
+  status: "success" | "failed" | "recovered" | "socialized";
   label: string;
   detail: string;
 };
@@ -75,6 +75,7 @@ const MAX_PHD_ROUNDS = PHD_YEARS * ROUNDS_PER_YEAR;
 const HAIYOU_YEARS = 5;
 const HAIYOU_ROUNDS = HAIYOU_YEARS * ROUNDS_PER_YEAR;
 const TRAINING_MONTHS = 3;
+const POSITIVE_SCORE_AC_REJECT_RATE = 20;
 
 const skillCatalog: Record<
   SkillKey,
@@ -322,6 +323,75 @@ const restEvents: RandomEvent[] = [
   },
 ];
 
+const socialEvents: RandomEvent[] = [
+  {
+    icon: "☕",
+    title: "大佬主动替你买了咖啡",
+    body: "你准备扫码转账，大佬摆摆手：『以后多给社区做贡献。』这句话暂时没有隐藏条件。",
+    effect: "专属事件：圈内好感 +6，精力 +5",
+    favor: 6,
+    stamina: 5,
+  },
+  {
+    icon: "↗",
+    title: "你被拉进“青年学者交流群 48”",
+    body: "群公告要求实名、禁广告、每天早上八点接龙。你发了一个“各位老师好”，收获 17 个握手表情。",
+    effect: "专属事件：圈内好感 +10，学术声望 +2",
+    favor: 10,
+    reputation: 2,
+  },
+  {
+    icon: "▦",
+    title: "你替大佬守住了 keynote 第一排",
+    body: "你提前四十分钟用电脑、外套和伦理边界占了三个座位。大佬准时在最后一分钟出现。",
+    effect: "专属事件：圈内好感 +5，额外精力 −3",
+    favor: 5,
+    stamina: -3,
+  },
+  {
+    icon: "⌁",
+    title: "机场拼车拼出了一个潜在 bid",
+    body: "堵车两小时，你完整听完了对方实验室的组织架构，并在下车时得到一句『有空看看你的工作』。",
+    effect: "专属事件：圈内好感 +8，额外精力 −2，写作品质 +2",
+    favor: 8,
+    stamina: -2,
+    mods: { quality: 2 },
+  },
+  {
+    icon: "⚠",
+    title: "你把大佬叫成了另一位大佬",
+    body: "对方微笑纠正了你，并准确说出了你的导师、论文标题和上次审稿分数。",
+    effect: "专属事件：圈内好感 −2，学术声望 −4",
+    favor: -2,
+    reputation: -4,
+  },
+  {
+    icon: "◇",
+    title: "合影时你不慎站到了 C 位",
+    body: "摄影师说随便站，所有人都知道这句话并不是真的。照片已经被上传到五个群。",
+    effect: "专属事件：圈内好感 +1，学术声望 −3",
+    favor: 1,
+    reputation: -3,
+  },
+  {
+    icon: "⌘",
+    title: "你修好了大佬的 HDMI",
+    body: "大佬终于能展示第 87 页 future work。你的实验还在远程终端里等待断线重连。",
+    effect: "专属事件：圈内好感 +7，额外精力 −2，严谨度 −2",
+    favor: 7,
+    stamina: -2,
+    mods: { rigor: -2 },
+  },
+  {
+    icon: "✦",
+    title: "大佬在朋友圈给你的论文点了赞",
+    body: "没有评论，没有引用，只有一个赞。整个组开始逐帧分析这个赞的政策含义。",
+    effect: "专属事件：圈内好感 +7，学术声望 +3",
+    favor: 7,
+    reputation: 3,
+  },
+];
+
 const origins = {
   dynasty: {
     name: "学阀世家",
@@ -386,7 +456,7 @@ const topics = [
   },
 ];
 
-const venues = ["ICML", "NeurIPS", "ICLR", "ACL", "AAAI"] as const;
+const venues = ["ICML", "ACL", "NeurIPS", "AAAI", "ICLR"] as const;
 
 function conferenceForSemester(semester: number) {
   const name = venues[(semester - 1) % venues.length];
@@ -817,9 +887,11 @@ export default function Home() {
     setLogs((current) => [message, ...current].slice(0, 8));
   };
 
-  const applyMonthlyEvent = (event: RandomEvent, baseStaminaChange = 0) => {
+  const applyMonthlyEvent = (event: RandomEvent, baseStaminaChange = 0, baseFavorChange = 0) => {
     setStamina((value) => clamp(value + baseStaminaChange + (event.stamina ?? 0), 0, 100));
-    if (event.favor) setFavor((value) => clamp(value + event.favor!, 0, 100));
+    if (baseFavorChange || event.favor) {
+      setFavor((value) => clamp(value + baseFavorChange + (event.favor ?? 0), 0, 100));
+    }
     if (event.reputation) setReputation((value) => clamp(value + event.reputation!, 0, 100));
     if (event.mods) {
       setPaperMods((value) => ({
@@ -881,6 +953,20 @@ export default function Home() {
     });
     setCurrentEvent(event);
     addLog(`第 ${semester} 轮 · ${trainingMonth} 月：选择休整，恢复 ${recovered} 点精力，触发「${event.title}」。`);
+  };
+
+  const socialMonth = () => {
+    if (currentEvent) return;
+    const event = pick(socialEvents);
+    const favorGain = 6 + (event.favor ?? 0);
+    applyMonthlyEvent(event, -5, 6);
+    setMonthlyActionResult({
+      status: "socialized",
+      label: `社交完成 · 圈内好感 +${favorGain}`,
+      detail: "本月不增加技能；基础社交收益 +6，专属事件可能继续加码，也可能让场面短暂失控。",
+    });
+    setCurrentEvent(event);
+    addLog(`第 ${semester} 轮 · ${trainingMonth} 月：去 social 大佬，圈内好感 +${favorGain}，触发「${event.title}」。`);
   };
 
   const continueMonth = () => {
@@ -994,8 +1080,11 @@ export default function Home() {
       clamp(center + randomInt(-1, 2), 1, 10),
       clamp(center + randomInt(-2, 2), 1, 10),
     ];
-    const positiveScoresOverruled = scores.every((score) => score >= 5) && randomInt(1, 100) <= 30;
-    const accepted = sampledAccepted && !positiveScoresOverruled;
+    const allPositiveScores = scores.every((score) => score >= 5);
+    const positiveScoresOverruled =
+      allPositiveScores && randomInt(1, 100) <= POSITIVE_SCORE_AC_REJECT_RATE;
+    const accepted = allPositiveScores ? !positiveScoresOverruled : sampledAccepted;
+    const effectiveProbability = allPositiveScores ? 100 - POSITIVE_SCORE_AC_REJECT_RATE : probability;
     const eliteOverride =
       accepted && originKey === "dynasty" && (rankPercentile > acceptedRate || scores.reduce((a, b) => a + b, 0) / 3 < 5);
     const distribution = [
@@ -1052,7 +1141,7 @@ export default function Home() {
 
     setDecision({
       accepted,
-      probability: Math.round(probability),
+      probability: Math.round(effectiveProbability),
       scores,
       review,
       areaChair,
@@ -1181,6 +1270,7 @@ export default function Home() {
         <div>
           <span className="eyebrow">{currentConference.label} · PARODY EDITION</span>
           <h1>{currentConference.name} PhD Survival Track</h1>
+          <p className="conference-subtitle">全网最真实的Openreview模拟器</p>
         </div>
         <div className="conference-meta">
           <span>
@@ -1211,7 +1301,7 @@ export default function Home() {
             <p className="ring-label">{haiyouMode ? "海优论文进度 · 难度已提升" : "毕业录用进度"}</p>
           </section>
 
-          <section className="side-section">
+          <section className="side-section vitals-sidebar">
             <h2>学术生命体征</h2>
             <Metric label="精力值" value={stamina} tone="coral" />
             <Metric label="圈内好感" value={favor} tone="teal" />
@@ -1234,7 +1324,7 @@ export default function Home() {
             ))}
           </section>
 
-          <section className="side-section">
+          <section className="side-section checklist-sidebar">
             <h2>{haiyouMode ? "海优里程碑" : "毕业清单"}</h2>
             <ul className="checklist">
               {(haiyouMode ? [3, 5, 10] : [1, 2, 3]).map((milestone) => (
@@ -1345,7 +1435,7 @@ export default function Home() {
               <PhaseHeader
                 step={`MONTH ${trainingMonth} / ${TRAINING_MONTHS} · SKILL PHASE`}
                 title={`第 ${semester} 轮 · ${currentConference.name} · ${trainingMonth} 月行动`}
-                description="每月可尝试进修一项技能，或放弃成长换取精力。进修可能失败，随机事件不会缺席。"
+                description="每月可尝试进修、休整，或去 social 大佬。进修可能失败，每种生活方式都有自己的随机性。"
               />
               {!currentEvent ? (
                 <>
@@ -1398,10 +1488,22 @@ export default function Home() {
                         <small>精力</small>
                       </span>
                     </button>
+                    <button type="button" className="skill-card social-card" onClick={socialMonth}>
+                      <span className="skill-icon">♟</span>
+                      <span className="skill-copy">
+                        <small>SOCIAL · COST 5 ENERGY · EXCLUSIVE EVENTS</small>
+                        <strong>去 social 大佬</strong>
+                        <p>稳定获得至少 4 点圈内好感；触发只属于饭局、会场、群聊与机场的专属事件。</p>
+                      </span>
+                      <span className="skill-add social">
+                        +4~16
+                        <small>圈内好感</small>
+                      </span>
+                    </button>
                   </div>
                   <div className="probability-footnote">
                     <span>风险披露</span>
-                    技能成功率随等级、疲劳和海优模式下降；失败同样消耗 4 点精力。负面或带严重副作用的事件概率约 {haiyouMode ? "86" : "76"}%。
+                    技能成功率随等级、疲劳和海优模式下降；失败同样消耗 4 点精力。Social 消耗 5 点精力，但必定净增好感。进修的负面或带严重副作用事件概率约 {haiyouMode ? "86" : "76"}%。
                   </div>
                 </>
               ) : (
