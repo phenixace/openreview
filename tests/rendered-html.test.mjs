@@ -104,6 +104,16 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /temperature=0/);
   assert.match(page, /out of scope/);
   assert.match(page, /海优加压阶段/);
+  assert.match(page, /field-exile/);
+  assert.match(page, /overseas-postdoc/);
+  assert.match(page, /auto-startup/);
+  assert.match(page, /community-manager/);
+  assert.match(page, /quant-switch/);
+  assert.match(page, /bossFavor >= 55 && reputation >= 55/);
+  assert.match(page, /reputation >= 65 && manualPapers >= autoPapers/);
+  assert.match(page, /autoPapers > manualPapers/);
+  assert.match(page, /circleFavor >= 72/);
+  assert.match(page, /stamina >= 70/);
   assert.match(page, /CONFERENCE SCORE DISTRIBUTION/);
   assert.match(layout, /PeerReview™ — 3 Accepts or Perish/);
   assert.match(layout, /全网最真实的 OpenReview 模拟器/);

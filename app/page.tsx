@@ -761,7 +761,15 @@ function makePaper(method: Method, semester: number, skills: Skills, mods: Paper
   };
 }
 
-function getEnding(accepts: number, favor: number, stamina: number, reputation: number): Ending {
+function getEnding(
+  accepts: number,
+  circleFavor: number,
+  bossFavor: number,
+  stamina: number,
+  reputation: number,
+  manualPapers: number,
+  autoPapers: number,
+): Ending {
   if (accepts < 3 && accepts === 0) {
     return {
       id: "street",
@@ -782,26 +790,6 @@ function getEnding(accepts: number, favor: number, stamina: number, reputation: 
       tone: "mixed",
     };
   }
-  if (accepts >= 5 && reputation >= 68) {
-    return {
-      id: "big-tech-winner",
-      icon: "🏆",
-      title: "进大厂，成为人生赢家",
-      subtitle: "ENDING S · Staff Researcher（审批中）",
-      body: "你的论文数和人脉形成了正反馈。入职第一天，老板让你把 AutoResearch 接进季度 OKR。",
-      tone: "good",
-    };
-  }
-  if (accepts >= 4 && favor >= 72) {
-    return {
-      id: "haiyou-return",
-      icon: "✈️",
-      title: "海优回国",
-      subtitle: "ENDING A · 青年人才答辩限定版",
-      body: "你带着四篇论文、三封推荐信和一张延迟报销的机票回国，开始评审下一代博士生。",
-      tone: "good",
-    };
-  }
   if (stamina <= 14) {
     return {
       id: "graduated-unemployed",
@@ -810,6 +798,66 @@ function getEnding(accepts: number, favor: number, stamina: number, reputation: 
       subtitle: "ENDING C− · 精神状态 under review",
       body: "三篇录用刚好换来学位，却没剩下力气准备面试。你暂住实验室，把学位帽当枕头。",
       tone: "bad",
+    };
+  }
+  if (bossFavor <= -45) {
+    return {
+      id: "field-exile",
+      icon: "🕶️",
+      title: "顺利毕业，改名换赛道",
+      subtitle: "ENDING X · Identity obfuscation accepted",
+      body: "三篇论文足够拿学位，但大佬已经能从逗号位置认出你。你删掉主页、换了英文名，去隔壁赛道重新成为 promising young researcher。",
+      tone: "mixed",
+    };
+  }
+  if (bossFavor >= 55 && reputation >= 55) {
+    return {
+      id: "big-tech-winner",
+      icon: "🏆",
+      title: "进大厂，成为人生赢家",
+      subtitle: "ENDING S · Staff Researcher（大佬内推版）",
+      body: "三篇论文、大佬的一句话和招聘系统里的绿色标记形成了正反馈。入职第一天，老板让你把 AutoResearch 接进季度 OKR。",
+      tone: "good",
+    };
+  }
+  if (reputation >= 65 && manualPapers >= autoPapers) {
+    return {
+      id: "overseas-postdoc",
+      icon: "🔬",
+      title: "顺利毕业，去海外做博后",
+      subtitle: "ENDING A− · Fixed-term prestige",
+      body: "社区承认你确实会做研究，于是奖励你一份两年合同、半张办公桌和另一套时区里的 deadline。导师说这是独立科研的开始。",
+      tone: "good",
+    };
+  }
+  if (autoPapers > manualPapers) {
+    return {
+      id: "auto-startup",
+      icon: "🤖",
+      title: "顺利毕业，加入 AutoResearch 创业公司",
+      subtitle: "ENDING AI · Human-in-the-loop（暂时）",
+      body: "你的核心竞争力是最懂得如何向 AutoResearch 解释 Reviewer #2。公司任命你为首席人类监督员，并把替代你的功能排进下季度路线图。",
+      tone: "mixed",
+    };
+  }
+  if (circleFavor >= 72) {
+    return {
+      id: "community-manager",
+      icon: "📱",
+      title: "顺利毕业，成为学术圈群主",
+      subtitle: "ENDING G · 青年学者交流群 49",
+      body: "你的论文刚好够毕业，但通讯录足以组织一场 workshop。你留在学术圈，主要贡献包括拉群、催稿、找 keynote 和发送握手表情。",
+      tone: "good",
+    };
+  }
+  if (stamina >= 70) {
+    return {
+      id: "quant-switch",
+      icon: "📈",
+      title: "顺利毕业，转行量化",
+      subtitle: "ENDING Q · Loss function finally pays",
+      body: "你毕业时居然还剩大量精力，猎头认为这是罕见的异常值。你开始研究另一种不可复现的随机过程，但这次随机种子会影响年终奖。",
+      tone: "good",
     };
   }
   return {
@@ -1429,7 +1477,11 @@ export default function Home() {
   };
 
   const finishCurrentPath = () => {
-    setEnding(haiyouMode ? getHaiyouEnding(accepts) : getEnding(accepts, favor, stamina, reputation));
+    setEnding(
+      haiyouMode
+        ? getHaiyouEnding(accepts)
+        : getEnding(accepts, favor, bossFavor, stamina, reputation, manualPapers, autoPapers),
+    );
     setPhase("ending");
   };
 
@@ -1449,7 +1501,11 @@ export default function Home() {
       return;
     }
     if (newAccepts >= targetAccepts || semester >= maxRounds) {
-      setEnding(haiyouMode ? getHaiyouEnding(newAccepts) : getEnding(newAccepts, favor, stamina, reputation));
+      setEnding(
+        haiyouMode
+          ? getHaiyouEnding(newAccepts)
+          : getEnding(newAccepts, favor, bossFavor, stamina, reputation, manualPapers, autoPapers),
+      );
       setPhase("ending");
       return;
     }
