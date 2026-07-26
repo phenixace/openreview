@@ -85,6 +85,43 @@ type ReportResult = {
   bossFavorDelta: number;
 };
 
+type SavedGameState = {
+  runId: string;
+  originKey: OriginKey;
+  phase: Phase;
+  semester: number;
+  targetAccepts: 3 | 10;
+  haiyouStartRound: number | null;
+  trainingMonth: number;
+  skills: Skills;
+  paperMods: PaperMods;
+  currentEvent: RandomEvent | null;
+  monthlyActionResult: MonthlyActionResult | null;
+  accepts: number;
+  favor: number;
+  bossFavor: number;
+  stamina: number;
+  reputation: number;
+  paper: Paper | null;
+  arxiv: boolean;
+  bid: boolean;
+  reviewScore: number | null;
+  reportResult: ReportResult | null;
+  decision: Decision | null;
+  ending: Ending | null;
+  submitted: number;
+  manualPapers: number;
+  autoPapers: number;
+  logs: string[];
+};
+
+type SavedGame = {
+  version: 1;
+  balanceVersion: string;
+  savedAt: string;
+  state: SavedGameState;
+};
+
 const ROUNDS_PER_YEAR = 5;
 const PHD_YEARS = 4;
 const MAX_PHD_ROUNDS = PHD_YEARS * ROUNDS_PER_YEAR;
@@ -92,6 +129,8 @@ const HAIYOU_YEARS = 5;
 const HAIYOU_ROUNDS = HAIYOU_YEARS * ROUNDS_PER_YEAR;
 const TRAINING_MONTHS = 3;
 const POSITIVE_SCORE_AC_REJECT_RATE = 20;
+const BALANCE_VERSION = "2026.07.26-r14";
+const SAVE_STORAGE_KEY = "peerreview-phd-survival-save-v1";
 
 const skillCatalog: Record<
   SkillKey,
@@ -639,6 +678,8 @@ const easterEggLabels: Record<string, string> = {
   "temperature-zero": "temperature=0 instant reject",
   "compare-yourself": "挂 arXiv 后被要求对比自己",
   "positive-scores-next-round": "全正分仍 justify next round",
+  "low-score-rescue": "普通组极小概率低分捞回",
+  "elite-low-score-rescue": "大组低分影响力捞回",
 };
 
 const reviewCopy: Record<number, string> = {
@@ -885,8 +926,45 @@ function getExhaustionEnding(accepts: number): Ending {
   };
 }
 
-function getHaiyouEnding(accepts: number): Ending {
+function getHaiyouEnding(
+  accepts: number,
+  bossFavor: number,
+  stamina: number,
+  reputation: number,
+  manualPapers: number,
+  autoPapers: number,
+): Ending {
   if (accepts >= 10) {
+    if (stamina <= 14) {
+      return {
+        id: "haiyou-burnout",
+        icon: "🪫",
+        title: "十篇达成：海优成功，人已离线",
+        subtitle: "ENDING S− · Applicant not responding",
+        body: "材料顺利通过，学校却连续三天联系不上你。你最后一次上线是上传第十篇论文，状态写着：稍后回复。",
+        tone: "mixed",
+      };
+    }
+    if (autoPapers > manualPapers) {
+      return {
+        id: "haiyou-auto-factory",
+        icon: "🏭",
+        title: "十篇达成：AutoResearch 海优流水线",
+        subtitle: "ENDING AI+ · Principal Investigator not found",
+        body: "十篇论文整齐得像同一条流水线。答辩专家唯一的问题是：申请人本人是否属于项目的必要组件。",
+        tone: "mixed",
+      };
+    }
+    if (bossFavor >= 60 && reputation >= 75) {
+      return {
+        id: "haiyou-young-boss",
+        icon: "🪑",
+        title: "海优回国，直接坐上评审席",
+        subtitle: "ENDING S++ · Reviewer #2 succession plan",
+        body: "论文、声望与大佬的一句话全部到位。回国第二周，你收到的第一封正式邮件不是 offer，而是十五篇待审稿件。",
+        tone: "good",
+      };
+    }
     return {
       id: "haiyou-success",
       icon: "🌏",
@@ -894,6 +972,26 @@ function getHaiyouEnding(accepts: number): Ending {
       subtitle: "ENDING S+ · 材料已进入校内第七轮审核",
       body: "你用十篇录用证明了自己能在随机系统里稳定抽中。回国答辩时，专家问的第一个问题是：年龄是否刚好超线。",
       tone: "good",
+    };
+  }
+  if (accepts >= 8) {
+    return {
+      id: "haiyou-near-miss",
+      icon: "9️⃣",
+      title: "海优差一口气：代表作不足",
+      subtitle: "ENDING H+ · Nine papers are not ten papers",
+      body: `你带着 ${accepts} 篇录用进入最终答辩。专家认可每一篇，然后解释材料要求中的“十篇左右”严格等于十篇。`,
+      tone: "mixed",
+    };
+  }
+  if (accepts < 5) {
+    return {
+      id: "haiyou-desk-reject",
+      icon: "🗂️",
+      title: "海优申请初审退回",
+      subtitle: "ENDING H0 · Missing required attachment: more papers",
+      body: `你已有 ${accepts} 篇顶会，足够博士毕业。系统仍用 0.8 秒判定“代表性成果数量不足”，甚至没有调用 Reviewer。`,
+      tone: "bad",
     };
   }
   return {
@@ -944,6 +1042,8 @@ export default function Home() {
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
   const [publicStats, setPublicStats] = useState<PublicGameStats | null>(null);
   const [supabaseLive, setSupabaseLive] = useState(false);
+  const [savedGame, setSavedGame] = useState<SavedGame | null>(null);
+  const [saveHydrated, setSaveHydrated] = useState(false);
   const runIdRef = useRef("");
   const endingTrackedRef = useRef("");
   const [logs, setLogs] = useState<string[]>([
@@ -1001,6 +1101,103 @@ export default function Home() {
   );
 
   useEffect(() => {
+    try {
+      const rawSave = window.localStorage.getItem(SAVE_STORAGE_KEY);
+      if (!rawSave) {
+        setSaveHydrated(true);
+        return;
+      }
+      const parsed = JSON.parse(rawSave) as SavedGame;
+      if (parsed.version === 1 && parsed.state?.runId && parsed.state?.originKey) {
+        setSavedGame(parsed);
+      } else {
+        window.localStorage.removeItem(SAVE_STORAGE_KEY);
+      }
+    } catch {
+      try {
+        window.localStorage.removeItem(SAVE_STORAGE_KEY);
+      } catch {
+        // Ignore storage APIs blocked by private browsing policies.
+      }
+    } finally {
+      setSaveHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!saveHydrated || !started || !runIdRef.current) return;
+    const nextSave: SavedGame = {
+      version: 1,
+      balanceVersion: BALANCE_VERSION,
+      savedAt: new Date().toISOString(),
+      state: {
+        runId: runIdRef.current,
+        originKey,
+        phase,
+        semester,
+        targetAccepts,
+        haiyouStartRound,
+        trainingMonth,
+        skills,
+        paperMods,
+        currentEvent,
+        monthlyActionResult,
+        accepts,
+        favor,
+        bossFavor,
+        stamina,
+        reputation,
+        paper,
+        arxiv,
+        bid,
+        reviewScore,
+        reportResult,
+        decision,
+        ending,
+        submitted,
+        manualPapers,
+        autoPapers,
+        logs,
+      },
+    };
+    try {
+      window.localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(nextSave));
+      setSavedGame(nextSave);
+    } catch {
+      // The game remains playable when private browsing or storage quotas block local saves.
+    }
+  }, [
+    accepts,
+    arxiv,
+    autoPapers,
+    bid,
+    bossFavor,
+    currentEvent,
+    decision,
+    ending,
+    favor,
+    haiyouStartRound,
+    logs,
+    manualPapers,
+    monthlyActionResult,
+    originKey,
+    paper,
+    paperMods,
+    phase,
+    reportResult,
+    reputation,
+    reviewScore,
+    saveHydrated,
+    semester,
+    skills,
+    stamina,
+    started,
+    submitted,
+    targetAccepts,
+    trainingMonth,
+  ]);
+
+  useEffect(() => {
     if (
       phase !== "ending" ||
       !ending ||
@@ -1023,6 +1220,7 @@ export default function Home() {
         origin: originKey,
         semester,
         haiyou_mode: haiyouMode,
+        balance_version: BALANCE_VERSION,
         stamina,
         circle_favor: favor,
         boss_favor: bossFavor,
@@ -1077,7 +1275,7 @@ export default function Home() {
     void recordGameEvent({
       runId: runIdRef.current,
       eventName: "game_started",
-      properties: { origin: originKey },
+      properties: { origin: originKey, balance_version: BALANCE_VERSION },
     });
   };
 
@@ -1293,6 +1491,7 @@ export default function Home() {
         detection_level: skills.detection,
         success_chance: reportSuccessChance,
         boss_favor_delta: result.bossFavorDelta,
+        balance_version: BALANCE_VERSION,
         semester,
         venue: currentConference.name,
       },
@@ -1459,6 +1658,7 @@ export default function Home() {
         eventName: "easter_egg_triggered",
         properties: {
           easter_egg_id: easterEggId,
+          balance_version: BALANCE_VERSION,
           venue: currentConference.name,
           semester,
           paper_method: paper.method,
@@ -1501,7 +1701,7 @@ export default function Home() {
   const finishCurrentPath = () => {
     setEnding(
       haiyouMode
-        ? getHaiyouEnding(accepts)
+        ? getHaiyouEnding(accepts, bossFavor, stamina, reputation, manualPapers, autoPapers)
         : getEnding(accepts, favor, bossFavor, stamina, reputation, manualPapers, autoPapers),
     );
     setPhase("ending");
@@ -1525,7 +1725,7 @@ export default function Home() {
     if (newAccepts >= targetAccepts || semester >= maxRounds) {
       setEnding(
         haiyouMode
-          ? getHaiyouEnding(newAccepts)
+          ? getHaiyouEnding(newAccepts, bossFavor, stamina, reputation, manualPapers, autoPapers)
           : getEnding(newAccepts, favor, bossFavor, stamina, reputation, manualPapers, autoPapers),
       );
       setPhase("ending");
@@ -1534,7 +1734,57 @@ export default function Home() {
     advanceSemester();
   };
 
+  const resumeSavedGame = () => {
+    if (!savedGame) return;
+    const state = savedGame.state;
+    runIdRef.current = state.runId || crypto.randomUUID();
+    endingTrackedRef.current = state.phase === "ending" ? runIdRef.current : "";
+    setOriginKey(state.originKey);
+    setPhase(state.phase);
+    setSemester(state.semester);
+    setTargetAccepts(state.targetAccepts);
+    setHaiyouStartRound(state.haiyouStartRound);
+    setTrainingMonth(state.trainingMonth);
+    setSkills(state.skills);
+    setPaperMods(state.paperMods);
+    setCurrentEvent(state.currentEvent);
+    setMonthlyActionResult(state.monthlyActionResult);
+    setAccepts(state.accepts);
+    setFavor(state.favor);
+    setBossFavor(state.bossFavor);
+    setStamina(state.stamina);
+    setReputation(state.reputation);
+    setPaper(state.paper);
+    setArxiv(state.arxiv);
+    setBid(state.bid);
+    setReviewScore(state.reviewScore);
+    setReportResult(state.reportResult);
+    setDecision(state.decision);
+    setEnding(state.ending);
+    setSubmitted(state.submitted);
+    setManualPapers(state.manualPapers);
+    setAutoPapers(state.autoPapers);
+    setLogs(["已从本机存档恢复。匿名系统假装什么都没有发生。", ...state.logs].slice(0, 8));
+    setStarted(true);
+    if (state.phase === "ending") {
+      void fetchPublicGameStats().then((stats) => {
+        setPublicStats(stats);
+        setSupabaseLive(Boolean(stats));
+      });
+    }
+  };
+
+  const clearSavedGame = () => {
+    try {
+      window.localStorage.removeItem(SAVE_STORAGE_KEY);
+    } catch {
+      // A blocked storage API should not prevent starting a new run.
+    }
+    setSavedGame(null);
+  };
+
   const resetGame = () => {
+    clearSavedGame();
     setStarted(false);
     setPhase("training");
     setSemester(1);
@@ -1682,6 +1932,24 @@ export default function Home() {
         <section className="main-panel">
           {!started && (
             <div className="setup-card">
+              {savedGame && (
+                <div className="save-resume">
+                  <div>
+                    <span className="kicker">LOCAL AUTOSAVE · DEVICE ONLY</span>
+                    <strong>检测到一份尚未注销的博士生账号</strong>
+                    <p>
+                      {conferenceForSemester(savedGame.state.semester).name} · 第 {savedGame.state.semester} 轮 ·
+                      已录用 {savedGame.state.accepts}/{savedGame.state.targetAccepts} ·
+                      {savedGame.balanceVersion === BALANCE_VERSION ? " 当前平衡版本" : " 旧版存档，将按新规则继续"}
+                    </p>
+                    <small>保存于 {new Date(savedGame.savedAt).toLocaleString("zh-CN")}</small>
+                  </div>
+                  <div className="save-actions">
+                    <button className="primary" type="button" onClick={resumeSavedGame}>继续上次受苦 →</button>
+                    <button className="ghost" type="button" onClick={clearSavedGame}>放弃本机存档</button>
+                  </div>
+                </div>
+              )}
               <div className="setup-heading">
                 <span className="kicker">NEW GAME · 身世抽卡，但允许重抽</span>
                 <h2>请选择你的学术出生点</h2>
@@ -2237,6 +2505,7 @@ export default function Home() {
             <div className="system-row"><span>本轮投稿</span><b>{poolSize.toLocaleString()}</b></div>
             <div className="system-row"><span>AutoResearch</span><b className="warning">{autoShare}%</b></div>
             <div className="system-row"><span>本轮名额</span><b>约 30%</b></div>
+            <div className="system-row"><span>进度保存</span><b>{saveHydrated ? "本机自动" : "初始化中"}</b></div>
             <div className="system-row"><span>利益冲突</span><b>自觉申报</b></div>
             <div className="system-row"><span>双盲状态</span><b className="warning">薛定谔的盲</b></div>
           </section>
@@ -2263,7 +2532,7 @@ export default function Home() {
 
       <footer>
         <span>PeerReview™ is a fictional satire. No gradients, no guarantees.</span>
-        <span>v0.1 · Built for everyone still waiting on Reviewer #2</span>
+        <span>{BALANCE_VERSION} · Built for everyone still waiting on Reviewer #2</span>
       </footer>
     </div>
   );

@@ -41,12 +41,13 @@ test("server-renders the PeerReview game setup", async () => {
 });
 
 test("ships game-specific metadata and social artwork", async () => {
-  const [page, layout, styles, supabaseClient, supabaseSchema, packageJson] = await Promise.all([
+  const [page, layout, styles, supabaseClient, supabaseSchema, balanceSimulator, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/supabase.ts", import.meta.url), "utf8"),
     readFile(new URL("../supabase/schema.sql", import.meta.url), "utf8"),
+    readFile(new URL("../scripts/simulate-balance.mjs", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
 
@@ -90,6 +91,17 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /lowScorePanel[\s\S]*lowScoreRescue[\s\S]*sampledAccepted/);
   assert.match(page, /极小概率低分玄学捞回/);
   assert.match(page, /low-score-rescue/);
+  assert.match(page, /elite-low-score-rescue/);
+  assert.match(page, /BALANCE_VERSION = "2026\.07\.26-r14"/);
+  assert.match(page, /SAVE_STORAGE_KEY/);
+  assert.match(page, /window\.localStorage\.setItem/);
+  assert.match(page, /继续上次受苦/);
+  assert.match(page, /resumeSavedGame/);
+  assert.match(page, /haiyou-burnout/);
+  assert.match(page, /haiyou-auto-factory/);
+  assert.match(page, /haiyou-young-boss/);
+  assert.match(page, /haiyou-near-miss/);
+  assert.match(page, /haiyou-desk-reject/);
   assert.match(page, /三位评审均给出正面评分/);
   assert.match(page, /reviewers’ opinions justify another round/);
   assert.match(page, /\["ICML", "ACL", "NeurIPS", "AAAI", "ICLR"\]/);
@@ -131,6 +143,9 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(supabaseSchema, /enable row level security/);
   assert.match(supabaseSchema, /get_public_game_stats/);
   assert.match(supabaseSchema, /grant insert on table public\.player_feedback/);
+  assert.match(balanceSimulator, /createSeededRandom/);
+  assert.match(balanceSimulator, /lowScoreAcceptanceRate/);
+  assert.match(packageJson, /balance:simulate/);
   assert.match(layout, /og\.jpg/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 
