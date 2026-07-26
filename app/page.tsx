@@ -67,6 +67,8 @@ type Decision = {
   eliteOverride: boolean;
   lowScoreRescue: boolean;
   positiveScoresOverruled: boolean;
+  bossRetaliationPenalty: number;
+  bossRetaliationOverruled: boolean;
 };
 
 type Ending = {
@@ -129,7 +131,7 @@ const HAIYOU_YEARS = 5;
 const HAIYOU_ROUNDS = HAIYOU_YEARS * ROUNDS_PER_YEAR;
 const TRAINING_MONTHS = 3;
 const POSITIVE_SCORE_AC_REJECT_RATE = 20;
-const BALANCE_VERSION = "2026.07.26-r14";
+const BALANCE_VERSION = "2026.07.26-r15";
 const SAVE_STORAGE_KEY = "peerreview-phd-survival-save-v1";
 
 const skillCatalog: Record<
@@ -678,7 +680,8 @@ const easterEggLabels: Record<string, string> = {
   "temperature-zero": "temperature=0 instant reject",
   "compare-yourself": "挂 arXiv 后被要求对比自己",
   "positive-scores-next-round": "全正分仍 justify next round",
-  "low-score-rescue": "普通组极小概率低分捞回",
+  "boss-retaliation": "全正分仍被大佬关系网拒稿",
+  "low-score-rescue": "非学阀极小概率低分捞回",
   "elite-low-score-rescue": "大组低分影响力捞回",
 };
 
@@ -1053,8 +1056,16 @@ export default function Home() {
   const origin = origins[originKey];
   const canBid = favor >= 55;
   const arxivFavorAdjustment = Math.round(bossFavor * 0.12);
-  const arxivPriorEffect = origin.arxiv + arxivFavorAdjustment;
-  const arxivExposureRiskPreview = clamp(origin.arxivExposure - arxivFavorAdjustment, 0, 40);
+  const rawArxivPriorEffect = origin.arxiv + arxivFavorAdjustment;
+  const arxivPriorEffect =
+    originKey === "dynasty"
+      ? Math.max(4, rawArxivPriorEffect)
+      : Math.min(-2, rawArxivPriorEffect);
+  const rawArxivExposureRisk = origin.arxivExposure - arxivFavorAdjustment;
+  const arxivExposureRiskPreview =
+    originKey === "dynasty"
+      ? clamp(rawArxivExposureRisk, 0, 40)
+      : clamp(rawArxivExposureRisk, 5, 40);
   const supabaseReady = supabaseLive;
   const haiyouMode = targetAccepts === 10;
   const phaseRound = haiyouMode && haiyouStartRound ? semester - haiyouStartRound + 1 : semester;
@@ -1456,7 +1467,7 @@ export default function Home() {
         bossFavorDelta: -12,
       };
     } else if (randomInt(1, 100) <= reportSuccessChance) {
-      const bossFavorDelta = randomInt(8, 16);
+      const bossFavorDelta = autoResearchNormalized ? randomInt(0, 2) : randomInt(8, 16);
       result = {
         tone: "success",
         title: autoResearchNormalized ? "举报成立，但委员会已经麻了" : "举报成功：抓到批量科研痕迹",
@@ -1511,6 +1522,7 @@ export default function Home() {
     );
     const detectedBy = [0, 1, 2].filter(() => randomInt(1, 100) <= reviewerDetectionChance).length;
     const smellPenalty = autoResearchNormalized ? 0 : detectedBy * -8;
+    const bossRetaliationPenalty = Math.round(Math.max(0, -bossFavor) * 0.16);
     const composite =
       paper.quality * 0.35 +
       paper.novelty * 0.29 +
@@ -1519,7 +1531,8 @@ export default function Home() {
       arxivEffect +
       bidEffect +
       quotaEffect +
-      smellPenalty;
+      smellPenalty -
+      bossRetaliationPenalty;
     const rankPercentile = clamp(
       Math.round(104 - composite + autoShare * 0.09 + (haiyouMode ? 11 : 0) + randomInt(-15, 16)),
       1,
@@ -1537,6 +1550,7 @@ export default function Home() {
         (paper.quality - 65) * 0.15 -
         (autoResearchNormalized ? 0 : detectedBy * 5) -
         arxivExposureRisk * 0.45 -
+        bossRetaliationPenalty * 0.5 -
         randomInt(-9, 5),
       3,
       haiyouMode ? 68 : 82,
@@ -1560,13 +1574,23 @@ export default function Home() {
       lowScorePanel && randomInt(1, 100) <= lowScoreRescueProbability;
     const positiveScoresOverruled =
       allPositiveScores && randomInt(1, 100) <= POSITIVE_SCORE_AC_REJECT_RATE;
+    const bossRetaliationRejectRate = clamp(
+      Math.round((Math.max(0, -bossFavor) - 10) * 0.22),
+      0,
+      20,
+    );
+    const bossRetaliationOverruled =
+      allPositiveScores &&
+      !positiveScoresOverruled &&
+      bossRetaliationRejectRate > 0 &&
+      randomInt(1, 100) <= bossRetaliationRejectRate;
     const accepted = allPositiveScores
-      ? !positiveScoresOverruled
+      ? !positiveScoresOverruled && !bossRetaliationOverruled
       : lowScorePanel
         ? lowScoreRescue
         : sampledAccepted;
     const effectiveProbability = allPositiveScores
-      ? 100 - POSITIVE_SCORE_AC_REJECT_RATE
+      ? (100 - POSITIVE_SCORE_AC_REJECT_RATE) * (1 - bossRetaliationRejectRate / 100)
       : lowScorePanel
         ? lowScoreRescueProbability
         : probability;
@@ -1596,22 +1620,27 @@ export default function Home() {
       ...(eliteOverride
         ? ["分数偏低。Area Chair 提醒我们应当关注作者团队的长期贡献与潜在影响。"]
         : []),
+      ...(bossFavor <= -30
+        ? ["评审意见本身尚可，但委员会收到了一项无法向作者披露、无法复核、也无法申诉的社区层面 concern。"]
+        : []),
     ];
     const reviewPool = accepted
       ? [...acceptReviewLibrary, ...contextualReviews]
       : [...rejectReviewLibrary, ...contextualReviews];
-    const selectedEasterEgg = !accepted && !positiveScoresOverruled
+    const selectedEasterEgg = !accepted && !positiveScoresOverruled && !bossRetaliationOverruled
       ? arxiv && randomInt(1, 100) <= 42
         ? arxivReviewEasterEgg
         : randomInt(1, 100) <= 34
           ? pick(rejectReviewEasterEggs)
           : null
       : null;
-    const review = positiveScoresOverruled
+    const review = positiveScoresOverruled || bossRetaliationOverruled
       ? "Reviewer Summary：三位评审均给出正面评分，未发现足以拒稿的关键缺陷，并一致认为工作适合本会。"
       : `Reviewer #2：${selectedEasterEgg?.text ?? pick(reviewPool)}`;
     const areaChair = positiveScoresOverruled
       ? "三位 Reviewer 均给出正面评分。However, the reviewers’ opinions justify another round. 作者应携带这些支持意见，在 next round 重新接受同一批随机性。"
+      : bossRetaliationOverruled
+        ? "三位 Reviewer 均给出正面评分，但委员会收到了一项无法披露的 community concern。考虑到作者近期对领域生态造成的影响，本轮不予录用；该决定与论文质量无关，因此尤其科学。"
       : selectedEasterEgg?.acEcho ??
         (accepted
           ? eliteOverride
@@ -1624,6 +1653,8 @@ export default function Home() {
             : "综合考虑评审意见与本年度玄学波动，建议作者下一轮继续为社区做贡献。");
     const easterEggId = positiveScoresOverruled
       ? "positive-scores-next-round"
+      : bossRetaliationOverruled
+        ? "boss-retaliation"
       : lowScoreRescue
         ? originKey === "dynasty" ? "elite-low-score-rescue" : "low-score-rescue"
         : selectedEasterEgg?.id ?? null;
@@ -1643,6 +1674,8 @@ export default function Home() {
       eliteOverride,
       lowScoreRescue,
       positiveScoresOverruled,
+      bossRetaliationPenalty,
+      bossRetaliationOverruled,
     });
     setPhase("decision");
     setFavor((value) =>
@@ -2177,7 +2210,7 @@ export default function Home() {
                   <span className="option-copy">
                     <strong>同步挂 arXiv</strong>
                     <small>
-                      大佬好感 {signed(bossFavor)} 会改变公开身份的先验解释：好感越高，先验越高、暴露风险越低。
+                      大佬好感 {signed(bossFavor)} 会改变公开身份的先验解释；但非学阀身份挂出后始终保留负先验与暴露风险。
                     </small>
                   </span>
                   <span className={`risk-chip ${arxivPriorEffect >= 0 && arxivExposureRiskPreview <= 8 ? "positive" : "negative"}`}>
@@ -2233,10 +2266,8 @@ export default function Home() {
                             ? `AutoResearch 常态化 · 占比 ${autoShare}% · 不再单独扣分`
                             : `⚠ 疑似 AutoResearch · 置信度 ${rival.suspicion}%`}
                         </span>
-                      ) : rival.isAuto ? (
-                        <span className="auto-hidden">模板痕迹不明 · 鉴伪 Lv.{skills.detection} 未识别</span>
                       ) : (
-                        <span>人工写作痕迹较强</span>
+                        <span className="auto-hidden">未发现明确 AutoResearch 痕迹 · 鉴伪 Lv.{skills.detection}</span>
                       )}
                     </div>
                     <span className="tiny-label">ABSTRACT</span>
@@ -2289,7 +2320,7 @@ export default function Home() {
                     {reviewScore !== null && (
                       <div className={`consequence ${reviewScore >= 6 ? "kind" : "harsh"}`}>
                         {rival.isBigLab && reviewScore <= 4
-                          ? `大佬组预警：低分会损失大佬好感。学术人情 Lv.${skills.politics} 可减少损失。`
+                          ? `大佬组预警：低分会损失大佬好感，并持续压低以后投稿的排名与录用率；即使不挂 arXiv 也生效。学术人情 Lv.${skills.politics} 可减少损失。`
                           : rival.isBigLab && reviewScore >= 6
                             ? `大佬组礼仪：圈内好感照常增加；大佬认为正分是你应该做的，大佬好感 +0。`
                           : autoResearchNormalized && rival.isAuto
@@ -2346,6 +2377,16 @@ export default function Home() {
                       ⚠ 彩蛋触发：全员正分，但 AC 判定这些正面意见足以 justify another round。
                     </div>
                   )}
+                  {decision.bossRetaliationOverruled && (
+                    <div className="detection-notice retaliation">
+                      ⚠ 大佬关系网触发：全员正分仍被不可披露的 community concern 拒稿。
+                    </div>
+                  )}
+                  {decision.bossRetaliationPenalty > 0 && !decision.bossRetaliationOverruled && (
+                    <div className="detection-notice retaliation">
+                      ⚠ 持续性关系网压力：大佬好感为负，本轮综合排序额外 −{decision.bossRetaliationPenalty}。
+                    </div>
+                  )}
                   <blockquote>{decision.review}</blockquote>
                   <div className="ac-note">
                     <span>AREA CHAIR META-REVIEW</span>
@@ -2388,6 +2429,7 @@ export default function Home() {
                   {decision.eliteOverride && <b> 本轮触发：大组低分捞回。</b>}
                   {decision.lowScoreRescue && !decision.eliteOverride && <b> 本轮触发：极小概率低分玄学捞回。</b>}
                   {decision.positiveScoresOverruled && <b> 本轮触发：全正分仍被 AC 送往 next round。</b>}
+                  {decision.bossRetaliationOverruled && <b> 本轮触发：大佬好感过低，全正分仍被关系网拦截。</b>}
                 </div>
               </section>
               <div className="action-row">

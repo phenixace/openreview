@@ -18,3 +18,26 @@ test("low-score acceptance remains a rare exception", () => {
     );
   }
 });
+
+test("deeply negative boss favor creates a persistent retaliation penalty", () => {
+  const neutral = simulateBalance({
+    seed: "boss-retaliation-audit",
+    runs: 8000,
+    semesters: [10],
+    bossFavor: 0,
+  });
+  const retaliated = simulateBalance({
+    seed: "boss-retaliation-audit",
+    runs: 8000,
+    semesters: [10],
+    bossFavor: -80,
+  });
+  const averageRate = (report) =>
+    report.results.reduce((total, result) => total + result.acceptanceRate, 0) /
+    report.results.length;
+
+  assert.ok(
+    averageRate(retaliated) < averageRate(neutral) - 3,
+    `retaliated=${averageRate(retaliated)} neutral=${averageRate(neutral)}`,
+  );
+});

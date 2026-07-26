@@ -34,7 +34,7 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function simulatePaperDecision({ random, originKey, method, semester }) {
+function simulatePaperDecision({ random, originKey, method, semester, bossFavor }) {
   const origin = ORIGINS[originKey];
   const autoShare = clamp(18 + (semester - 1) * 5, 18, 90);
   const autoResearchNormalized = autoShare >= 80;
@@ -47,13 +47,15 @@ function simulatePaperDecision({ random, originKey, method, semester }) {
     () => randomInt(random, 1, 100) <= reviewerDetectionChance,
   ).length;
   const smellPenalty = autoResearchNormalized ? 0 : detectedBy * -8;
+  const bossRetaliationPenalty = Math.round(Math.max(0, -bossFavor) * 0.16);
   const composite =
     quality * 0.35 +
     novelty * 0.29 +
     rigor * 0.25 +
     origin.base +
     2 +
-    smellPenalty;
+    smellPenalty -
+    bossRetaliationPenalty;
   const rankPercentile = clamp(
     Math.round(104 - composite + autoShare * 0.09 + randomInt(random, -15, 16)),
     1,
@@ -69,6 +71,7 @@ function simulatePaperDecision({ random, originKey, method, semester }) {
       eliteRescue +
       (quality - 65) * 0.15 -
       (autoResearchNormalized ? 0 : detectedBy * 5) -
+      bossRetaliationPenalty * 0.5 -
       randomInt(random, -9, 5),
     3,
     82,
@@ -92,8 +95,18 @@ function simulatePaperDecision({ random, originKey, method, semester }) {
     lowScorePanel && randomInt(random, 1, 100) <= lowScoreRescueProbability;
   const positiveScoresOverruled =
     allPositiveScores && randomInt(random, 1, 100) <= 20;
+  const bossRetaliationRejectRate = clamp(
+    Math.round((Math.max(0, -bossFavor) - 10) * 0.22),
+    0,
+    20,
+  );
+  const bossRetaliationOverruled =
+    allPositiveScores &&
+    !positiveScoresOverruled &&
+    bossRetaliationRejectRate > 0 &&
+    randomInt(random, 1, 100) <= bossRetaliationRejectRate;
   const accepted = allPositiveScores
-    ? !positiveScoresOverruled
+    ? !positiveScoresOverruled && !bossRetaliationOverruled
     : lowScorePanel
       ? lowScoreRescue
       : sampledAccepted;
@@ -110,6 +123,7 @@ export function simulateBalance({
   seed = "reviewer-2",
   runs = 5000,
   semesters = [1, 10, 18],
+  bossFavor = 0,
 } = {}) {
   const results = [];
   for (const originKey of Object.keys(ORIGINS)) {
@@ -122,7 +136,13 @@ export function simulateBalance({
         let positivePanels = 0;
         let scoreTotal = 0;
         for (let index = 0; index < runs; index += 1) {
-          const decision = simulatePaperDecision({ random, originKey, method, semester });
+          const decision = simulatePaperDecision({
+            random,
+            originKey,
+            method,
+            semester,
+            bossFavor,
+          });
           accepted += Number(decision.accepted);
           lowScorePanels += Number(decision.lowScorePanel);
           lowScoreAccepted += Number(decision.lowScorePanel && decision.accepted);
@@ -145,7 +165,7 @@ export function simulateBalance({
       }
     }
   }
-  return { seed, runs, results };
+  return { seed, runs, bossFavor, results };
 }
 
 function readArgument(name, fallback) {
@@ -157,11 +177,14 @@ function readArgument(name, fallback) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const seed = readArgument("seed", "reviewer-2");
   const runs = Number(readArgument("runs", "5000"));
-  const report = simulateBalance({ seed, runs });
+  const bossFavor = Number(readArgument("boss-favor", "0"));
+  const report = simulateBalance({ seed, runs, bossFavor });
   if (process.argv.includes("--json")) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    console.log(`PeerReview balance simulation · seed=${report.seed} · runs/scenario=${report.runs}`);
+    console.log(
+      `PeerReview balance simulation · seed=${report.seed} · runs/scenario=${report.runs} · bossFavor=${report.bossFavor}`,
+    );
     console.table(report.results);
   }
 }
