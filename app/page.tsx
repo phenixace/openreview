@@ -1,17 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import {
   fetchPublicGameStats,
   recordGameEvent,
   submitPlayerFeedback,
   type PublicGameStats,
 } from "./lib/supabase";
+import { translateToEnglish } from "./i18n.mjs";
 
 type OriginKey = "dynasty" | "ordinary" | "wild";
 type Method = "manual" | "auto";
 type Phase = "training" | "research" | "paper" | "review" | "decision" | "ending";
 type SkillKey = "theory" | "engineering" | "writing" | "detection" | "politics";
+type Language = "zh" | "en";
 
 type Skills = Record<SkillKey, number>;
 
@@ -131,8 +142,50 @@ const HAIYOU_YEARS = 5;
 const HAIYOU_ROUNDS = HAIYOU_YEARS * ROUNDS_PER_YEAR;
 const TRAINING_MONTHS = 3;
 const POSITIVE_SCORE_AC_REJECT_RATE = 20;
-const BALANCE_VERSION = "2026.07.26-r15";
+const BALANCE_VERSION = "2026.07.27-r16";
 const SAVE_STORAGE_KEY = "peerreview-phd-survival-save-v1";
+const LANGUAGE_STORAGE_KEY = "peerreview-language-v1";
+const LOCALIZABLE_PROPS = new Set([
+  "aria-label",
+  "description",
+  "label",
+  "note",
+  "placeholder",
+  "step",
+  "title",
+]);
+
+function localizeReactNode(node: ReactNode): ReactNode {
+  if (typeof node === "string") return translateToEnglish(node);
+  if (Array.isArray(node)) return node.map(localizeReactNode);
+  if (!isValidElement(node)) return node;
+
+  const element = node as ReactElement<Record<string, unknown>>;
+  if (element.props["data-no-localize"]) return element;
+
+  const translatedProps: Record<string, unknown> = {};
+  for (const propName of LOCALIZABLE_PROPS) {
+    const propValue = element.props[propName];
+    if (typeof propValue === "string") {
+      translatedProps[propName] = translateToEnglish(propValue);
+    }
+  }
+  if ("children" in element.props) {
+    translatedProps.children = localizeReactNode(element.props.children as ReactNode);
+  }
+
+  return cloneElement(element, translatedProps);
+}
+
+function LocalizedTree({
+  language,
+  children,
+}: {
+  language: Language;
+  children: ReactNode;
+}) {
+  return <>{language === "en" ? localizeReactNode(children) : children}</>;
+}
 
 const skillCatalog: Record<
   SkillKey,
@@ -1008,6 +1061,7 @@ function getHaiyouEnding(
 }
 
 export default function Home() {
+  const [language, setLanguage] = useState<Language>("zh");
   const [originKey, setOriginKey] = useState<OriginKey>("ordinary");
   const [started, setStarted] = useState(false);
   const [phase, setPhase] = useState<Phase>("training");
@@ -1110,6 +1164,25 @@ export default function Home() {
     10,
     95,
   );
+
+  useEffect(() => {
+    try {
+      const storedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (storedLanguage === "zh" || storedLanguage === "en") {
+        setLanguage(storedLanguage);
+      }
+    } catch {
+      // Language selection remains usable when browser storage is unavailable.
+    }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language === "en" ? "en" : "zh-CN";
+    document.title =
+      language === "en"
+        ? "PeerReview™ — 3 Accepts or Perish"
+        : "PeerReview™ — 三篇录用，否则毁灭";
+  }, [language]);
 
   useEffect(() => {
     try {
@@ -1292,6 +1365,15 @@ export default function Home() {
 
   const addLog = (message: string) => {
     setLogs((current) => [message, ...current].slice(0, 8));
+  };
+
+  const changeLanguage = (nextLanguage: Language) => {
+    setLanguage(nextLanguage);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
+    } catch {
+      // Language still switches for the current session.
+    }
   };
 
   const applyMonthlyEvent = (event: RandomEvent, baseStaminaChange = 0, baseFavorChange = 0) => {
@@ -1866,6 +1948,7 @@ export default function Home() {
   };
 
   return (
+    <LocalizedTree language={language}>
     <div className="app-shell">
       <header className="topbar">
         <div className="brand" aria-label="PeerReview 首页">
@@ -1882,6 +1965,24 @@ export default function Home() {
         <div className="deadline">
           <span className="pulse-dot" />
           距离 deadline：<strong>{Math.max(0, maxRounds - semester + 1)} 轮会议</strong>
+        </div>
+        <div className="language-switch" role="group" aria-label="Language switcher" data-no-localize>
+          <button
+            type="button"
+            className={language === "zh" ? "active" : ""}
+            aria-pressed={language === "zh"}
+            onClick={() => changeLanguage("zh")}
+          >
+            中
+          </button>
+          <button
+            type="button"
+            className={language === "en" ? "active" : ""}
+            aria-pressed={language === "en"}
+            onClick={() => changeLanguage("en")}
+          >
+            EN
+          </button>
         </div>
         <div className="avatar" aria-label="匿名博士生">匿</div>
       </header>
@@ -1975,7 +2076,9 @@ export default function Home() {
                       已录用 {savedGame.state.accepts}/{savedGame.state.targetAccepts} ·
                       {savedGame.balanceVersion === BALANCE_VERSION ? " 当前平衡版本" : " 旧版存档，将按新规则继续"}
                     </p>
-                    <small>保存于 {new Date(savedGame.savedAt).toLocaleString("zh-CN")}</small>
+                    <small>
+                      保存于 {new Date(savedGame.savedAt).toLocaleString(language === "en" ? "en-US" : "zh-CN")}
+                    </small>
                   </div>
                   <div className="save-actions">
                     <button className="primary" type="button" onClick={resumeSavedGame}>继续上次受苦 →</button>
@@ -2577,6 +2680,7 @@ export default function Home() {
         <span>{BALANCE_VERSION} · Built for everyone still waiting on Reviewer #2</span>
       </footer>
     </div>
+    </LocalizedTree>
   );
 }
 

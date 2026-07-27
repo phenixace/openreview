@@ -37,6 +37,9 @@ test("server-renders the PeerReview game setup", async () => {
   assert.match(html, /普通组/);
   assert.match(html, /导师失联/);
   assert.match(html, /AutoResearch/);
+  assert.match(html, /Language switcher/);
+  assert.match(html, />中</);
+  assert.match(html, />EN</);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/i);
 });
 
@@ -100,7 +103,13 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(page, /bossRetaliationPenalty/);
   assert.match(page, /bossRetaliationOverruled/);
   assert.match(page, /community concern/);
-  assert.match(page, /BALANCE_VERSION = "2026\.07\.26-r15"/);
+  assert.match(page, /BALANCE_VERSION = "2026\.07\.27-r16"/);
+  assert.match(page, /LANGUAGE_STORAGE_KEY/);
+  assert.match(page, /LocalizedTree/);
+  assert.match(page, /translateToEnglish/);
+  assert.match(page, /changeLanguage\("zh"\)/);
+  assert.match(page, /changeLanguage\("en"\)/);
+  assert.match(page, /Language switcher/);
   assert.match(page, /SAVE_STORAGE_KEY/);
   assert.match(page, /window\.localStorage\.setItem/);
   assert.match(page, /继续上次受苦/);
@@ -145,6 +154,7 @@ test("ships game-specific metadata and social artwork", async () => {
   assert.match(layout, /全网最真实的 OpenReview 模拟器/);
   assert.match(styles, /@media \(max-width: 600px\)[\s\S]*\.vitals-sidebar[\s\S]*display: grid/);
   assert.match(styles, /@media \(max-width: 600px\)[\s\S]*\.skill-sidebar[\s\S]*display: grid/);
+  assert.match(styles, /\.language-switch/);
   assert.match(supabaseClient, /sb_publishable_/);
   assert.doesNotMatch(supabaseClient, /sb_secret_|service_role/);
   assert.match(supabaseClient, /fetchPublicGameStats/);
